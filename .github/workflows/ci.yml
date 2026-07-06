@@ -1,0 +1,38 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+      
+      - name: Run backend tests
+        run: |
+          cd backend
+          pytest tests/ -v
+      
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm install
+      
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
