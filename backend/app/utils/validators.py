@@ -38,7 +38,7 @@ def validate_seat_number(seat: str) -> str:
 
 def validate_zone_id(zone_id: str) -> str:
     zone_id = zone_id.strip()
-    if not zone_id or not zone_id.isalnum():
+    if not zone_id or not zone_id.replace("_", "").isalnum():
         raise ValueError("Invalid zone ID")
     return zone_id
 

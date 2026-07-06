@@ -29,3 +29,9 @@ async def get_recommendations(zone_id: str | None = None):
     snapshots = crowd_engine.get_all_snapshots()
     recs = recommendation_engine.generate(snapshots, zone_id)
     return ApiResponse(success=True, data=recs)
+
+
+@router.post("/time", response_model=ApiResponse[dict])
+async def set_time(minutes: int):
+    crowd_engine.set_match_time(minutes)
+    return ApiResponse(success=True, data={"match_time": crowd_engine.match_time_minutes})

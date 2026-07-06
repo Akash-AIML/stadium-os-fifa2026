@@ -2,7 +2,7 @@ import React from 'react';
 import { useApp } from '../context/AppContext';
 
 export function DevModePanel() {
-  const { state } = useApp();
+  const { state, toggleDevMode } = useApp();
 
   if (!state.dev_mode) return null;
 
@@ -13,7 +13,7 @@ export function DevModePanel() {
       <div className="flex justify-between items-center mb-2">
         <h3 className="font-bold">Developer Mode</h3>
         <button
-          onClick={() => {}}
+          onClick={toggleDevMode}
           className="text-gray-400 hover:text-white"
           aria-label="Close dev mode"
         >
@@ -44,7 +44,7 @@ export function DevModePanel() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono">
             <p>Intent: {lastMessage.intent}</p>
             <p>Response: {lastMessage.response_time?.toFixed(2)}ms</p>
-            <p>Confidence: {(lastMessage.confidence || 0 * 100).toFixed(0)}%</p>
+            <p>Confidence: {((lastMessage.confidence || 0) * 100).toFixed(0)}%</p>
             <p>Fallback: {lastMessage.is_fallback ? 'Yes' : 'No'}</p>
           </div>
         </div>

@@ -53,3 +53,10 @@ export async function sendChatMessage(
   });
   return handleResponse<any>(response);
 }
+
+export async function setSimulationTimeApi(minutes: number) {
+  const response = await fetch(`${API_BASE}/crowd/time?minutes=${minutes}`, {
+    method: 'POST',
+  });
+  return handleResponse<any>(response);
+}
