@@ -1,11 +1,9 @@
 import { useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { setSimulationTimeApi } from '../../services/api';
-import { useCrowdData } from './useCrowdData';
 
 export function useSimulation() {
   const { state, setSimulationTime, toggleDevMode } = useApp();
-  const { loadData } = useCrowdData();
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -20,13 +18,14 @@ export function useSimulation() {
   }, [toggleDevMode]);
 
   const setMatchTime = async (minutes: number) => {
-    const mins = Math.max(0, Math.min(120, minutes));
+    // Allow full range including pre-match (-30) to post-match (120)
+    const mins = Math.max(-30, Math.min(120, minutes));
     setSimulationTime(mins);
+    // Notify backend if available — silently ignore failures (backend may not be deployed)
     try {
       await setSimulationTimeApi(mins);
-      loadData();
-    } catch (error) {
-      console.error('Failed to sync simulation time with backend:', error);
+    } catch {
+      // Backend unreachable — slider still works locally
     }
   };
 

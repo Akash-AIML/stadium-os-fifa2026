@@ -110,7 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (payload.crowd) dispatch({ type: 'SET_CROWD_DATA', payload: payload.crowd });
         if (payload.alerts) dispatch({ type: 'SET_ALERTS', payload: payload.alerts });
         if (payload.recommendations) dispatch({ type: 'SET_RECOMMENDATIONS', payload: payload.recommendations });
-        if (payload.match_time !== undefined) dispatch({ type: 'SET_SIMULATION_TIME', payload: payload.match_time });
+        // NOTE: Do NOT dispatch SET_SIMULATION_TIME from WebSocket — the slider is user-controlled only.
       } catch (err) {
         console.error('Error parsing WS message:', err);
       }
