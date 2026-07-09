@@ -73,6 +73,28 @@ The pathfinder is a fully custom Dijkstra implementation built on top of each st
 
 The endpoint `POST /api/v1/navigate` receives `{from_zone, to_zone, accessible, stadium_id}` and returns the ordered zone list, total estimated minutes, and accessibility flag.
 
+#### 🤔 Why Dijkstra? — Algorithm Choice Justification
+
+The stadium navigation problem has four hard requirements that together uniquely qualify Dijkstra and disqualify every common alternative:
+
+1. **Edge weights are non-negative** — every corridor weight is `distance + congestion_factor`, both always ≥ 0.
+2. **Weights are dynamic** — congestion multipliers change every few seconds with the WebSocket tick, so the graph cannot be preprocessed once and reused indefinitely.
+3. **We need the actual path** (ordered zone list), not just the minimum cost.
+4. **Single-source, single-destination** — one fan, one query at a time; not all pairs at once.
+
+| Algorithm | Time Complexity | Handles Weighted Edges | Handles Dynamic Weights | Returns Full Path | Why Ruled Out for StadiumOS |
+|:---|:---:|:---:|:---:|:---:|:---|
+| **Dijkstra** ✅ | O((V + E) log V) | ✅ Yes | ✅ Yes (re-run on change) | ✅ Yes | **Best fit** — fast, correct, path-aware, non-negative weights |
+| **Kruskal's MST** ❌ | O(E log E) | ✅ Yes | ❌ Rebuild required | ❌ No — MST only | Solves a completely different problem: *Minimum Spanning Tree*, not shortest path. MST connects all nodes with minimum total edge cost — it does not find the fastest route from Gate A to Section 112. Applying it to navigation would traverse the entire stadium graph even for a simple 3-hop path. |
+| **Prim's MST** ❌ | O(E log V) | ✅ Yes | ❌ Rebuild required | ❌ No — MST only | Same issue as Kruskal — it builds a spanning tree of the whole venue, not a point-to-point route. Suited for network cabling problems, not fan navigation. |
+| **Bellman-Ford** ❌ | O(V × E) | ✅ Yes | ✅ Yes | ✅ Yes | Handles negative weights, which we do not have. It relaxes every edge `V-1` times regardless — a stadium with ~40 nodes and ~120 edges runs 4,800 relaxations per query vs. Dijkstra's ~80–160 heap operations. Too slow for real-time per-request path resolution. |
+| **A\* Search** ⚠️ | O(E log V) | ✅ Yes | ✅ Yes | ✅ Yes | Faster than Dijkstra *if* a reliable admissible heuristic exists (e.g. Euclidean distance to destination). Stadium zones use logical IDs (`gate_a`, `section_112`), not necessarily spatially meaningful coordinates. Designing a consistent heuristic across all three venue layouts and accessibility weight overrides without inadvertently making it inadmissible (which would break correctness) adds significant complexity for marginal gain on a ~40-node graph. Dijkstra is already sub-millisecond at this scale. |
+| **BFS (Breadth-First)** ❌ | O(V + E) | ❌ No | ❌ No | ✅ Yes | Only finds shortest path in terms of *hop count* (number of zones crossed), ignoring actual corridor distances, crowd congestion multipliers, and accessibility penalties entirely. A BFS path might route a fan through 3 zones but through peak-density concourses, while the true optimal 5-zone path takes 40% less time. |
+| **Floyd-Warshall** ❌ | O(V³) | ✅ Yes | ❌ Expensive rebuild | ✅ Yes | Computes shortest paths between *all pairs* of nodes. At `V=40` zones that is 64,000 operations — and the entire table must be rebuilt every time a crowd multiplier changes (every ~3 seconds). Completely impractical for dynamic real-time weights; designed for static graphs queried exhaustively, not single-pair live routing. |
+| **Johnson's Algorithm** ❌ | O(V² log V + VE) | ✅ Yes | ❌ Expensive rebuild | ✅ Yes | A multi-source preprocessing algorithm combining Bellman-Ford + Dijkstra to handle graphs with negative edges. Our weights are always positive, so the Bellman-Ford preprocessing pass is pure wasted computation. Designed for dense static graphs; overkill and slower for our sparse, dynamic adjacency list. |
+
+**Summary**: Kruskal and Prim solve a structurally different problem (MST). BFS ignores weights. Bellman-Ford is unnecessarily slow. Floyd-Warshall and Johnson's are batch-preprocessing algorithms unsuited for real-time per-request routing with dynamic weights. A* is a valid alternative but offers no measurable gain over Dijkstra on a ≤50-node stadium graph, while introducing heuristic design complexity. **Dijkstra with a min-heap is the canonical, correct, and most efficient choice for this exact problem class.**
+
 ---
 
 ### 2. Multi-Stadium Configuration Engine
