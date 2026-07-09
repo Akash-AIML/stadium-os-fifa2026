@@ -81,3 +81,12 @@ export interface AppState {
   simulation_time: number;
   dev_mode: boolean;
 }
+
+export interface CrowdZone extends Zone {
+  density: number;
+  queueTime: number;
+  trend: 'up' | 'down' | 'stable';
+  history: number[];
+  waitHistory: number[];
+  recommendations: string[];
+}

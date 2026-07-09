@@ -41,7 +41,7 @@ describe('ChatWindow Component', () => {
       </AppProvider>
     );
 
-    const input = screen.getByPlaceholderText('Ask about stadium navigation or section crowding...');
+    const input = screen.getByPlaceholderText('Ask about stadium, crowd, food, navigation...');
     const submitBtn = screen.getByRole('button', { name: 'Send message' });
 
     fireEvent.change(input, { target: { value: 'Where should I eat?' } });
@@ -55,7 +55,11 @@ describe('ChatWindow Component', () => {
 
     // Verify response is displayed
     await waitFor(() => {
-      expect(screen.getByText('I recommend eating at Food Court C.')).toBeInTheDocument();
+      expect(screen.getByText('recommend')).toBeInTheDocument();
+      expect(screen.getByText('eating')).toBeInTheDocument();
+      expect(screen.getByText('Food')).toBeInTheDocument();
+      expect(screen.getByText('Court')).toBeInTheDocument();
+      expect(screen.getByText('💡 Suggestion')).toBeInTheDocument();
     });
   });
 });

@@ -47,8 +47,14 @@ class RecommendationEngine:
                 zone_id=best.zone_id,
                 priority="high" if worst.density > 0.75 else "medium",
             )
-
-        return None
+        else:
+            return Recommendation(
+                id="rec_food_info",
+                type="food",
+                message=f"Hungry? {best.zone_id.replace('_', ' ').title()} is currently least busy with only {best.density:.0%} density.",
+                zone_id=best.zone_id,
+                priority="low",
+            )
 
     def _recommend_restroom(
         self, crowd_data: list[CrowdSnapshot], current_zone_id: str | None
@@ -69,6 +75,17 @@ class RecommendationEngine:
                     zone_id=best.zone_id,
                     priority="high",
                 )
+        
+        clear_wc = [w for w in wc_zones if w.status in [ZoneStatus.CLEAR, ZoneStatus.MODERATE]]
+        if clear_wc:
+            best = min(clear_wc, key=lambda x: x.density)
+            return Recommendation(
+                id="rec_restroom_info",
+                type="restroom",
+                message=f"Restrooms near {best.zone_id.replace('_', ' ').title()} are currently clear.",
+                zone_id=best.zone_id,
+                priority="low",
+            )
 
         return None
 
@@ -91,6 +108,17 @@ class RecommendationEngine:
                     zone_id=best.zone_id,
                     priority="critical",
                 )
+        
+        clear_exits = [e for e in exit_zones if e.status in [ZoneStatus.CLEAR, ZoneStatus.MODERATE]]
+        if clear_exits:
+            best = min(clear_exits, key=lambda x: x.density)
+            return Recommendation(
+                id="rec_exit_info",
+                type="exit",
+                message=f"For a fast egress, Exit/Gate {best.zone_id.replace('_', ' ').title()} has low density.",
+                zone_id=best.zone_id,
+                priority="low",
+            )
 
         return None
 

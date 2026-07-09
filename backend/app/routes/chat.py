@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.models import ChatRequest, ChatResponse, ChatMessage, ApiResponse, IntentType
 from app.utils.validators import sanitize_message, validate_seat_number, validate_zone_id, validate_language
 from app.utils.intent import detect_intent
+from app.utils.rate_limit import rate_limit_dependency
 from app.services.crowd import crowd_engine, STADIUM_ZONES
 from app.services.navigation import navigation_engine
 from app.services.gemini import gemini_client
@@ -101,7 +102,7 @@ async def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
     )
 
 
-@router.post("/", response_model=ApiResponse[ChatResponse])
+@router.post("/", response_model=ApiResponse[ChatResponse], dependencies=[Depends(rate_limit_dependency)])
 async def chat_endpoint(request: ChatRequest):
     try:
         result = await handle_chat(request)

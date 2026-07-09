@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from app.models import ApiResponse, Route
 from app.services.navigation import navigation_engine
 from app.services.crowd import crowd_engine
+from app.utils.rate_limit import rate_limit_dependency
 
 router = APIRouter()
 
 
-@router.get("/", response_model=ApiResponse[Route | None])
+@router.get("/", response_model=ApiResponse[Route | None], dependencies=[Depends(rate_limit_dependency)])
 async def get_route(
     from_zone: str = Query(..., description="Starting zone ID"),
     to_zone: str = Query(..., description="Destination zone ID"),

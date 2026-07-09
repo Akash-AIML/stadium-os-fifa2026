@@ -1,4 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Trophy, Map as MapIcon, MessageSquare, BarChart2,
+  Navigation, Layers, Zap, ArrowRight, Sparkles,
+  Cloud, Users, Clock, Shield
+} from 'lucide-react';
+import { FloatingWidget } from './shared/components/PremiumCards';
 import { AppProvider, useApp } from './shared/context/AppContext';
 import { StadiumMap } from './features/navigation/StadiumMap';
 import { ChatWindow } from './features/chat/ChatWindow';
@@ -11,18 +18,30 @@ import { useSimulation } from './shared/hooks/useSimulation';
 import { STADIUM_ZONES_METADATA } from './shared/utils/zones';
 import { fetchRoute } from './services/api';
 
+// Premium Core Components
+import { TopNavbar } from './shared/components/TopNavbar';
+import { TimelineSlider } from './shared/components/TimelineSlider';
+import { StadiumHero3D } from './shared/components/StadiumHero3D';
+import { ToastSystem } from './shared/components/ToastSystem';
 
 function AppContent() {
   const { state, setCurrentZone, toggleDevMode, setSimulationTime } = useApp();
   const { loadData } = useCrowdData();
   const { setMatchTime } = useSimulation();
   const [showOnboarding, setShowOnboarding] = useState(true);
+  const [showHero, setShowHero] = useState(true);
   const [activeTab, setActiveTab] = useState<'map' | 'chat' | 'dashboard'>('map');
   const [currentRoute, setCurrentRoute] = useState<any | null>(null);
+  const [showMobileChatSheet, setShowMobileChatSheet] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<'density' | 'queue' | 'flow'>('density');
 
   useEffect(() => {
     const saved = localStorage.getItem('fifa_onboarding_complete');
     if (saved) setShowOnboarding(false);
+    
+    const entered = localStorage.getItem('fifa_smart_guide_entered');
+    if (entered) setShowHero(false);
   }, []);
 
   const handleZoneClick = async (zoneId: string) => {
@@ -41,199 +60,356 @@ function AppContent() {
     loadData();
   };
 
+  const handleEnterGuide = () => {
+    setShowHero(false);
+    localStorage.setItem('fifa_smart_guide_entered', 'true');
+  };
+
+  // Map raw snapshots into CrowdZone format
   const zones = state.crowd_data.map(c => {
     const meta = STADIUM_ZONES_METADATA[c.zone_id] || {
       label: c.zone_id.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
       type: 'generic',
       location: [0, 0] as [number, number],
     };
+    
+    // Simple mock historical data using current density
+    const history = [c.density * 0.9, c.density * 0.95, c.density * 1.05, c.density];
+    const waitHistory = [c.queue_time - 2, c.queue_time - 1, c.queue_time + 1, c.queue_time];
+    const trend = c.density > 0.75 ? 'up' : c.density < 0.25 ? 'down' : 'stable';
+
     return {
       id: c.zone_id,
       label: meta.label,
       type: meta.type,
       location: meta.location,
       status: c.status,
+      density: c.density,
+      queueTime: c.queue_time,
+      trend: trend as 'up' | 'down' | 'stable',
+      history,
+      waitHistory,
+      recommendations: [] as string[],
     };
   });
 
+  const HERO_FEATURES = [
+    { Icon: Navigation, title: 'Smart Nav',      desc: 'Congestion-aware pathfinding'    },
+    { Icon: Layers,     title: 'Crowd Heatmap',  desc: 'Live stadium zone density'       },
+    { Icon: Zap,        title: 'AI Assistant',   desc: 'Speech-supported Fan Copilot'   },
+    { Icon: BarChart2,  title: 'Live Timeline',  desc: 'Match clock time simulation'    },
+  ];
+
   return (
-    <div className="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-cyan-500/30 selection:text-cyan-200">
-      <div>
-        {/* Header */}
-        <header className="border-b border-slate-800/80 bg-slate-950/45 backdrop-blur-md sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-violet-500/20">
-                  ⚽
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-                    FIFA 2026 <span className="font-light text-cyan-400 neon-text-cyan">Smart Guide</span>
-                  </h1>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="text-right hidden sm:block">
-                  <p className="text-xs text-slate-400">Authorized user</p>
-                  <p className="text-sm font-semibold text-slate-200">{state.user.name}</p>
-                </div>
-                <button
-                  onClick={toggleDevMode}
-                  className="px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800/80 text-xs font-semibold text-slate-300 transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  aria-label="Toggle developer mode"
-                >
-                  🛠️ Developer Panel
-                </button>
-              </div>
-            </div>
-
-            {/* Simulation Controls */}
-            <div className="mt-4 pt-4 border-t border-slate-900 flex flex-wrap justify-between items-center gap-4">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setMatchTime(15)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all border ${
-                    state.simulation_time <= 30
-                      ? 'bg-blue-600/20 border-blue-500/50 text-blue-300 shadow-lg shadow-blue-500/10'
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/50'
-                  }`}
-                >
-                  ⚡ Pre-Match
-                </button>
-                <button
-                  onClick={() => setMatchTime(50)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all border ${
-                    state.simulation_time > 30 && state.simulation_time <= 75
-                      ? 'bg-amber-600/20 border-amber-500/50 text-amber-300 shadow-lg shadow-amber-500/10'
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/50'
-                  }`}
-                >
-                  ⏳ Halftime
-                </button>
-                <button
-                  onClick={() => setMatchTime(95)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all border ${
-                    state.simulation_time > 75
-                      ? 'bg-emerald-600/20 border-emerald-500/50 text-emerald-300 shadow-lg shadow-emerald-500/10'
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/50'
-                  }`}
-                >
-                  🏁 Full-Time
-                </button>
-              </div>
-              <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-900 text-xs font-mono text-cyan-400">
-                <span className="h-2 w-2 rounded-full bg-cyan-500 animate-ping" />
-                <span>Simulation: {state.simulation_time} mins</span>
-              </div>
-            </div>
+    <AnimatePresence mode="wait">
+      {showHero ? (
+        <motion.div
+          key="hero-screen"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.5 }}
+          className="relative min-h-screen flex flex-col overflow-hidden"
+          style={{ background: 'hsl(var(--bg))' }}
+        >
+          {/* 3D background */}
+          <div className="absolute inset-0 z-0">
+            <StadiumHero3D />
           </div>
-        </header>
 
-        {/* Mobile Tabs */}
-        <nav className="md:hidden bg-slate-950/60 backdrop-blur border-b border-slate-900" role="tablist">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab('map')}
-              className={`flex-1 py-3 text-center text-sm font-semibold transition-all ${
-                activeTab === 'map'
-                  ? 'border-b-2 border-cyan-500 text-cyan-400 bg-cyan-500/5'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              role="tab"
-              aria-selected={activeTab === 'map'}
+          {/* Top bar */}
+          <header className="relative z-10 w-full px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #06b6d4, #a855f7)' }}>
+                <Trophy className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm font-bold tracking-widest uppercase" style={{ color: 'hsl(var(--fg))' }}>FIFA 2026</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1 rounded-full text-xs font-semibold border" style={{ background: 'rgba(6,182,212,0.08)', borderColor: 'rgba(6,182,212,0.2)', color: '#06b6d4' }}>
+                Smart Guide v2.0
+              </div>
+              {/* Skip button for returning users */}
+              <motion.button
+                onClick={handleEnterGuide}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all"
+                style={{ background: 'hsl(var(--elevated))', borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted))' }}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                aria-label="Skip intro and enter dashboard"
+              >
+                Skip <ArrowRight className="w-3 h-3" />
+              </motion.button>
+            </div>
+          </header>
+
+          {/* Central glass overlay */}
+          <main className="relative z-10 max-w-lg mx-auto w-full px-4 flex flex-col items-center justify-center flex-1">
+            <motion.div
+              initial={{ scale: 0.96, y: 24, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.6, type: 'spring', stiffness: 200, damping: 25 }}
+              className="glass-panel-strong p-8 text-center w-full"
+              style={{ borderRadius: 24 }}
             >
-              🧭 Map
-            </button>
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`flex-1 py-3 text-center text-sm font-semibold transition-all ${
-                activeTab === 'chat'
-                  ? 'border-b-2 border-cyan-500 text-cyan-400 bg-cyan-500/5'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              role="tab"
-              aria-selected={activeTab === 'chat'}
-            >
-              💬 Assistant
-            </button>
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex-1 py-3 text-center text-sm font-semibold transition-all ${
-                activeTab === 'dashboard'
-                  ? 'border-b-2 border-cyan-500 text-cyan-400 bg-cyan-500/5'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              role="tab"
-              aria-selected={activeTab === 'dashboard'}
-            >
-              📊 Stats
-            </button>
+              {/* Logo badge */}
+              <motion.div
+                className="w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.3), rgba(168,85,247,0.3))' }}
+                animate={{ scale: [1, 1.04, 1] }}
+                transition={{ duration: 3, repeat: Infinity }}
+              >
+                <Trophy className="w-10 h-10" style={{ color: '#06b6d4' }} />
+              </motion.div>
+
+              <h1 className="text-3xl font-black tracking-tight mb-2" style={{ color: 'hsl(var(--fg))' }}>
+                FIFA 2026{' '}
+                <span className="neon-text-cyan font-light">Smart Guide</span>
+              </h1>
+              <p className="text-sm leading-relaxed mb-8 max-w-sm mx-auto" style={{ color: 'hsl(var(--muted))' }}>
+                Real-time stadium intelligence — navigation, crowd density, AI assistant, and match insights.
+              </p>
+
+              {/* Feature grid */}
+              <div className="grid grid-cols-2 gap-2.5 mb-8 text-left">
+                {HERO_FEATURES.map(({ Icon, title, desc }, i) => (
+                  <motion.div
+                    key={title}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 + i * 0.08 }}
+                    className="p-3 rounded-xl flex gap-2.5 items-start"
+                    style={{ background: 'hsl(var(--elevated))', border: '1px solid hsl(var(--border))' }}
+                  >
+                    <Icon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#06b6d4' }} />
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: 'hsl(var(--fg))' }}>{title}</p>
+                      <p className="text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>{desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <motion.button
+                onClick={handleEnterGuide}
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full py-3.5 rounded-xl font-bold text-sm tracking-wide text-white flex items-center justify-center gap-2 transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, #0891b2, #3b82f6)',
+                  boxShadow: '0 8px 32px rgba(6,182,212,0.3)',
+                }}
+              >
+                <Sparkles className="w-4 h-4" />
+                Enter Stadium Guide
+              </motion.button>
+            </motion.div>
+          </main>
+
+          <footer className="relative z-10 py-5 text-center text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>
+            Powered by Google Gemini AI & FastAPI • FIFA 2026
+          </footer>
+        </motion.div>
+      ) : (
+        <motion.div
+          key="main-dashboard"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+          className="min-h-screen flex flex-col"
+          style={{ color: 'hsl(var(--fg))' }}
+        >
+          <TopNavbar showChat={showChat} onToggleChat={() => setShowChat(s => !s)} />
+
+          {/* ── Mobile tab bar ───────────────────────────────── */}
+          <nav
+            className="md:hidden sticky top-[60px] z-30 border-b"
+            style={{
+              background: 'var(--glass-bg-strong)',
+              backdropFilter: 'blur(20px)',
+              borderColor: 'var(--glass-border)',
+            }}
+            role="tablist"
+          >
+            <div className="flex">
+              {[
+                { id: 'map',       label: 'Map',       Icon: MapIcon       },
+                { id: 'chat',      label: 'Assistant', Icon: MessageSquare },
+                { id: 'dashboard', label: 'Stats',     Icon: BarChart2     },
+              ].map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id as any)}
+                  className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-all border-b-2"
+                  style={{
+                    borderColor: activeTab === id ? 'hsl(var(--primary))' : 'transparent',
+                    color:       activeTab === id ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                  }}
+                  role="tab"
+                  aria-selected={activeTab === id}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          {/* ── Main workspace ───────────────────────────────── */}
+          <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 py-5 sm:px-6 lg:px-8">
+            {state.crowd_data.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+                <div className="skeleton h-12 w-full md:col-span-5" />
+                <div className="skeleton-card h-[calc(100vh-200px)] md:col-span-3" />
+                <div className="skeleton-card h-[calc(100vh-200px)] md:col-span-2" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-5 items-start">
+
+                {/* ── Left 60% or 100%: Map + Timeline + Dashboard/Recs ── */}
+                <div className={`${
+                  activeTab === 'map' || activeTab === 'dashboard' ? 'block' : 'hidden md:block'
+                } ${showChat ? 'md:col-span-3' : 'md:col-span-5'} space-y-4`}>
+
+                  {/* Stadium Map hero */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <MapIcon className="w-4 h-4" style={{ color: 'hsl(var(--primary))' }} />
+                        <h2 className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>Stadium Blueprint</h2>
+                        {state.current_zone_id && (
+                          <span className="badge-primary text-[10px]">{state.current_zone_id.replace(/_/g, ' ')}</span>
+                        )}
+                      </div>
+                      {state.current_zone_id && (
+                        <motion.button
+                          onClick={() => handleZoneClick(state.current_zone_id!)}
+                          className="btn-ghost text-xs"
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                        >
+                          Reset Route
+                        </motion.button>
+                      )}
+                    </div>
+                    <div className="h-[calc(100vh-260px)] min-h-[480px]">
+                      <StadiumMap
+                        zones={zones}
+                        selectedZoneId={state.current_zone_id}
+                        onZoneClick={handleZoneClick}
+                        activeRoute={currentRoute}
+                        showHeatmap={true}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Timeline */}
+                  <TimelineSlider />
+
+                  {/* Dashboard + Recommendations */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <BarChart2 className="w-4 h-4" style={{ color: 'hsl(var(--primary))' }} />
+                        <h2 className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>Stadium Intelligence</h2>
+                      </div>
+                      <Dashboard
+                        alerts={state.alerts}
+                        crowdData={state.crowd_data}
+                        selectedMetric={selectedMetric}
+                        onMetricChange={setSelectedMetric}
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Zap className="w-4 h-4" style={{ color: 'hsl(var(--primary))' }} />
+                        <h2 className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>Smart Recommendations</h2>
+                      </div>
+                      <RecommendationsList recommendations={state.recommendations} />
+                    </div>
+                  </div>
+
+                  {/* Floating Widgets Row */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                    <FloatingWidget icon={Cloud}   label="Weather"    value="24°C"   trend="stable" color="cyan"    />
+                    <FloatingWidget icon={Users}   label="Attendance" value="78,432" trend="up"     color="emerald" />
+                    <FloatingWidget icon={Clock}   label="Match Time" value="67'"    trend="up"     color="violet"  />
+                    <FloatingWidget icon={Shield}  label="Emergency"  value="Clear"  trend="stable" color="amber"   />
+                  </div>
+                </div>
+
+                {/* ── Right 40%: Toggleable Chat ────────────── */}
+                {showChat && (
+                  <div
+                    className={`${activeTab === 'chat' ? 'block' : 'hidden md:block'} md:col-span-2 md:sticky`}
+                    style={{ top: 'calc(60px + 1.25rem)', height: 'calc(100vh - 80px)' }}
+                  >
+                    <ChatWindow currentZoneId={state.current_zone_id} />
+                  </div>
+                )}
+
+              </div>
+            )}
+          </main>
+
+          {/* Footer */}
+          <footer
+            className="py-4 mt-8 text-center text-[10px] border-t"
+            style={{ borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-fg))' }}
+          >
+            FIFA 2026 Smart Guide • Powered by Google Gemini AI & FastAPI
+          </footer>
+
+          {/* ── Mobile floating AI FAB ─────────────────────── */}
+          <div className="md:hidden">
+            <AnimatePresence>
+              {activeTab !== 'chat' && (
+                <motion.button
+                  key="ai-fab"
+                  className="fab"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  onClick={() => setShowMobileChatSheet(true)}
+                  aria-label="Open AI assistant"
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.93 }}
+                >
+                  <MessageSquare className="w-6 h-6" />
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {showMobileChatSheet && (
+                <motion.div
+                  key="mobile-drawer"
+                  className="bottom-sheet fixed bottom-0 left-0 right-0 h-[82vh] z-50 flex flex-col overflow-hidden p-4"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                >
+                  <div
+                    className="w-10 h-1 rounded-full mx-auto mb-4 cursor-pointer"
+                    style={{ background: 'hsl(var(--border-strong))' }}
+                    onClick={() => setShowMobileChatSheet(false)}
+                  />
+                  <div className="flex-1 min-h-0">
+                    <ChatWindow currentZoneId={state.current_zone_id} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        </nav>
 
-        {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-            {/* Map */}
-            <div className={`${activeTab === 'map' ? 'block' : 'hidden md:block'}`}>
-              <div className="glass-panel rounded-2xl p-5">
-                <h2 className="text-lg font-bold mb-4 tracking-wide text-slate-200 flex items-center gap-2">
-                  <span>🧭</span> Stadium Live Blueprint
-                </h2>
-                <StadiumMap
-                  zones={zones}
-                  selectedZoneId={state.current_zone_id}
-                  onZoneClick={handleZoneClick}
-                  activeRoute={currentRoute}
-                />
-              </div>
-            </div>
-
-            {/* Chat */}
-            <div className={`${activeTab === 'chat' ? 'block' : 'hidden md:block'}`}>
-              <div className="glass-panel rounded-2xl p-5 h-[620px] flex flex-col justify-between">
-                <h2 className="text-lg font-bold mb-4 tracking-wide text-slate-200 flex items-center gap-2">
-                  <span>✨</span> FIFA AI Fan Assistant
-                </h2>
-                <div className="flex-1 h-full min-h-0">
-                  <ChatWindow currentZoneId={state.current_zone_id} />
-                </div>
-              </div>
-            </div>
-
-            {/* Dashboard & Recommendations */}
-            <div className={`${activeTab === 'dashboard' ? 'block' : 'hidden md:block'} md:col-span-2`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="glass-panel rounded-2xl p-5">
-                  <h2 className="text-lg font-bold mb-4 tracking-wide text-slate-200 flex items-center gap-2">
-                    <span>📊</span> Crowd Dynamics Overview
-                  </h2>
-                  <Dashboard alerts={state.alerts} crowdData={state.crowd_data} />
-                </div>
-                <div className="glass-panel rounded-2xl p-5">
-                  <h2 className="text-lg font-bold mb-4 tracking-wide text-slate-200 flex items-center gap-2">
-                    <span>💡</span> Contextual Recommendations
-                  </h2>
-                  <RecommendationsList recommendations={state.recommendations} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-slate-950/20 border-t border-slate-950 py-6 mt-12 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          FIFA 2026 Smart Guide • Powered by Google Gemini AI & FastAPI
-        </div>
-      </footer>
-
-      {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
-      <DevModePanel />
-    </div>
+          <ToastSystem alerts={state.alerts} />
+          {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
+          <DevModePanel />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
