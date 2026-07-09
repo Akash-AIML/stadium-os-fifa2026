@@ -5,7 +5,7 @@ StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-t
 
 Modelled venues: MetLife Stadium (New Jersey), SoFi Stadium (Los Angeles), and Estadio Azteca (Mexico City). Languages supported: **English, Spanish, French, German, Portuguese, Arabic, Japanese, Chinese, Hindi, and Tamil**.
 
-🌐 Live demo (Frontend): ""  
+🌐 Live demo (Frontend): https://stadium-os-fifa2026.vercel.app  
 🌐 Backend API (Hugging Face Spaces): ""  
 🐙 GitHub Repository: https://github.com/Akash-AIML/stadium-os-fifa2026
 
