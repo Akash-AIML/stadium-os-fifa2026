@@ -49,6 +49,8 @@ class ChatRequest(BaseModel):
     current_zone_id: str | None = None
     seat_number: str | None = None
     user_id: str | None = None
+    stadium_id: str | None = "metlife"
+    accessibility_mode: bool | None = False
 
 
 class ChatMessage(BaseModel):

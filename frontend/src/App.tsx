@@ -16,6 +16,7 @@ import { DevModePanel } from './shared/components/DevModePanel';
 import { useCrowdData } from './shared/hooks/useCrowdData';
 import { useSimulation } from './shared/hooks/useSimulation';
 import { STADIUM_ZONES_METADATA } from './shared/utils/zones';
+import { STADIUMS_CONFIG } from './shared/utils/stadiums';
 import { fetchRoute } from './services/api';
 
 // Premium Core Components
@@ -44,10 +45,54 @@ function AppContent() {
     if (entered) setShowHero(false);
   }, []);
 
+  // AI ↔ Map Synchronization Effect
+  useEffect(() => {
+    if (state.chat_history.length > 0) {
+      const lastMsg = state.chat_history[state.chat_history.length - 1];
+      if (lastMsg.role === 'model') {
+        const activeStadium = state.user.stadium_id || 'metlife';
+        const config = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
+
+        // 1. If response specifies a routing path, calculate and draw it
+        if (lastMsg.route_id) {
+          const routeId = lastMsg.route_id;
+          const zoneIds = Object.keys(config.zones);
+          const found = zoneIds.filter(id => routeId.includes(id));
+          if (found.length >= 2) {
+            const sorted = found.sort((a, b) => routeId.indexOf(a) - routeId.indexOf(b));
+            const fromZone = sorted[0];
+            const toZone = sorted[1];
+            fetchRoute(fromZone, toZone, activeStadium, state.user.accessibility_mode)
+              .then(routeData => {
+                setCurrentRoute(routeData);
+                setCurrentZone(toZone);
+              })
+              .catch(console.error);
+          }
+        } else {
+          // 2. Highlight/Pulse the zone mentioned by name in response content
+          const contentLower = lastMsg.content.toLowerCase();
+          const mentionedZone = Object.keys(config.zones).find(id => {
+            const label = config.zones[id].label.toLowerCase();
+            return contentLower.includes(label) || contentLower.includes(id.replace(/_/g, ' '));
+          });
+          if (mentionedZone) {
+            setCurrentZone(mentionedZone);
+          }
+        }
+      }
+    }
+  }, [state.chat_history, state.user.stadium_id, state.user.accessibility_mode, setCurrentZone]);
+
   const handleZoneClick = async (zoneId: string) => {
     if (state.current_zone_id && state.current_zone_id !== zoneId) {
       try {
-        const routeData = await fetchRoute(state.current_zone_id, zoneId);
+        const routeData = await fetchRoute(
+          state.current_zone_id,
+          zoneId,
+          state.user.stadium_id,
+          state.user.accessibility_mode
+        );
         setCurrentRoute(routeData);
       } catch (error) {
         console.error('Failed to fetch route:', error);
@@ -66,8 +111,10 @@ function AppContent() {
   };
 
   // Map raw snapshots into CrowdZone format
+  const activeStadium = state.user.stadium_id || 'metlife';
+  const currentStadium = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
   const zones = state.crowd_data.map(c => {
-    const meta = STADIUM_ZONES_METADATA[c.zone_id] || {
+    const meta = currentStadium.zones[c.zone_id] || {
       label: c.zone_id.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
       type: 'generic',
       location: [0, 0] as [number, number],
@@ -300,6 +347,7 @@ function AppContent() {
                         onZoneClick={handleZoneClick}
                         activeRoute={currentRoute}
                         showHeatmap={true}
+                        stadiumId={state.user.stadium_id}
                       />
                     </div>
                   </div>
@@ -326,7 +374,7 @@ function AppContent() {
                         <Zap className="w-4 h-4" style={{ color: 'hsl(var(--primary))' }} />
                         <h2 className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>Smart Recommendations</h2>
                       </div>
-                      <RecommendationsList recommendations={state.recommendations} />
+                      <RecommendationsList recommendations={state.recommendations} onNavigate={handleZoneClick} />
                     </div>
                   </div>
 

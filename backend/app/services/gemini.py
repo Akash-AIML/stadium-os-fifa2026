@@ -102,6 +102,8 @@ class GeminiClient:
         language: str,
         alerts: list[Alert],
         route: Route | None,
+        stadium_id: str = "metlife",
+        accessibility_mode: bool = False,
     ) -> dict:
         start_time = time.time()
         is_fallback = False
@@ -110,18 +112,18 @@ class GeminiClient:
 
         try:
             if self.model and GENAI_AVAILABLE:
-                prompt = self._build_prompt(intent, context_data, user_message, language, alerts, route)
+                prompt = self._build_prompt(intent, context_data, user_message, language, alerts, route, stadium_id, accessibility_mode)
                 response = self.model.generate_content(prompt)
                 text = response.text.strip()
                 confidence = 0.85
                 prompt_tokens = len(prompt) // 4
             else:
-                text = self._generate_fallback_response(intent, context_data, user_message, language, alerts, route)
+                text = self._generate_fallback_response(intent, context_data, user_message, language, alerts, route, stadium_id, accessibility_mode)
                 is_fallback = True
                 confidence = 0.6
 
         except Exception as e:
-            text = self._generate_fallback_response(intent, context_data, user_message, language, alerts, route)
+            text = self._generate_fallback_response(intent, context_data, user_message, language, alerts, route, stadium_id, accessibility_mode)
             is_fallback = True
             confidence = 0.5
 
@@ -144,25 +146,89 @@ class GeminiClient:
         language: str,
         alerts: list[Alert],
         route: Route | None,
+        stadium_id: str = "metlife",
+        accessibility_mode: bool = False,
     ) -> str:
-        prompt = f"""You are FIFA SmartGuide, a helpful AI assistant for football fans at the 2026 World Cup.
-Respond in {language} language. Be concise, friendly, and helpful.
+        from app.services.stadiums import STADIUMS_CONFIG
+        from app.services.crowd import crowd_engine
+        config = STADIUMS_CONFIG.get(stadium_id, STADIUMS_CONFIG["metlife"])
+        match_details = config["todaysMatch"]
+        elapsed_minutes = crowd_engine.match_time_minutes
+        
+        timeline_phase = "Pre-match"
+        if elapsed_minutes >= 90:
+            timeline_phase = "Fulltime (Post-match)"
+        elif elapsed_minutes >= 60:
+            timeline_phase = "Second Half"
+        elif elapsed_minutes >= 45:
+            timeline_phase = "Halftime"
+        elif elapsed_minutes >= 10:
+            timeline_phase = "First Half"
 
-CURRENT STADIUM STATUS:
+        lang_names = {
+            "en": "English",
+            "es": "Spanish (Español)",
+            "fr": "French (Français)",
+            "de": "German (Deutsch)",
+            "pt": "Portuguese (Português)",
+            "ar": "Arabic (العربية)",
+            "ja": "Japanese (日本語)",
+            "zh": "Chinese (中文)",
+            "hi": "Hindi (हिन्दी)",
+            "ta": "Tamil (தமிழ்)"
+        }
+        full_lang = lang_names.get(language, "English")
+
+        context_str = f"""
+=== SMART STADIUM CONTEXT ===
+Stadium: {config["name"]} ({config["locationName"]})
+Capacity: {config["capacity"]}
+Today's Match: {match_details["teams"]} (Scheduled: {match_details["time"]}, Phase: {match_details["phase"]})
+Current Simulation Time: Minute {elapsed_minutes} ({timeline_phase})
+Accessibility Mode Active: {accessibility_mode}
+Weather: Clear, 22°C (Stadium roof: Open)
+User Language: {full_lang}
 """
-        for snapshot in context_data[:5]:
-            prompt += f"- {snapshot.zone_id.replace('_', ' ').title()}: {snapshot.status.value} (density: {snapshot.density:.0%}, queue: {snapshot.queue_time}min)\n"
+
+        context_str += "\nZONE DENSITIES & QUEUES:\n"
+        for snapshot in context_data:
+            zone_name = snapshot.zone_id.replace('_', ' ').title()
+            context_str += f"- {zone_name}: status is '{snapshot.status.value}' (Density: {snapshot.density:.0%}, Queue Time: {snapshot.queue_time} min)\n"
 
         if alerts:
-            prompt += "\nACTIVE ALERTS:\n"
+            context_str += "\nACTIVE ALERTS:\n"
             for alert in alerts[:3]:
-                prompt += f"- [{alert.level.upper()}] {alert.message}\n"
+                context_str += f"- [{alert.level.upper()}] {alert.message}\n"
 
         if route:
-            prompt += f"\nRECOMMENDED ROUTE: {' → '.join(route.path)}\nEstimated time: {route.estimated_time}min\nCrowd level: {route.crowd_level:.0%}\nReason: {route.rationale}\n"
+            path_str = " → ".join([p.replace('_', ' ').title() for p in route.path])
+            context_str += f"""
+RECOMMENDED DETERMINISTIC ROUTE:
+Path: {path_str}
+Estimated Time: {route.estimated_time} minutes
+Average Crowd Level: {route.crowd_level:.0%}
+Reason/Rationale: {route.rationale}
+"""
 
-        prompt += f"\nUSER QUESTION: {user_message}\n\nProvide a helpful response based on the real-time data above. If data is unavailable, say so honestly."
+        prompt = f"""You are the conversational AI layer of the {config["name"]} Smart Stadium Operating System.
+Respond strictly in the {full_lang} language. Translate any stadium zone names, gates, restrooms, food concessions, and headers into {full_lang}. Be concise, professional, and helpful.
 
+Your primary duty is to explain decisions made by our deterministic engines (such as routing, crowding, and safety recommendation rules) and translate them into a natural, friendly narrative in the {full_lang} language.
+Do NOT make up route paths or override route coordinates. Use only the paths provided in the context.
+
+{context_str}
+
+USER QUESTION: {user_message}
+
+If the context contains a recommended route, you must explain it clearly and output:
+1. Recommendation: Explaining the route.
+2. Reason: Why it is the fastest/safest (e.g. list congestion avoided).
+3. Estimated Time Saved: Compute a friendly estimate (e.g. 5 minutes saved by avoiding crowded sections).
+4. Confidence Score: A percentage indicating path confidence (e.g. 95%).
+5. Alternative Option: What other exit/gate the user could take if they wish.
+
+Please provide a beautiful and structured response in {full_lang}.
+"""
         return prompt
 
     def _generate_fallback_response(
@@ -173,13 +239,21 @@ CURRENT STADIUM STATUS:
         language: str,
         alerts: list[Alert],
         route: Route | None,
+        stadium_id: str = "metlife",
+        accessibility_mode: bool = False,
     ) -> str:
         lang = language.lower() if language else "en"
         trans = FALLBACK_TRANSLATIONS.get(lang, FALLBACK_TRANSLATIONS["en"])
 
         if intent == IntentType.NAVIGATION and route:
-            path_str = " → ".join(route.path)
-            return trans["route_found"].format(path=path_str, time=route.estimated_time, rationale=route.rationale)
+            path_str = " → ".join([p.replace('_', ' ').title() for p in route.path])
+            a11y_prefix = "♿ [Accessible] " if accessibility_mode else ""
+            res = f"**{a11y_prefix}Recommendation:** Take {path_str}.\n\n"
+            res += f"**Reason:** {route.rationale}\n\n"
+            res += f"**Estimated Time Saved:** {route.estimated_time} minutes.\n\n"
+            res += f"**Confidence Score:** 90%\n\n"
+            res += f"**Alternative Option:** Follow the exit signs to the nearest gate."
+            return res
 
         if intent == IntentType.CROWD_STATUS:
             busy_zones = [c for c in context_data if c.status in [ZoneStatus.BUSY, ZoneStatus.CONGESTED]]

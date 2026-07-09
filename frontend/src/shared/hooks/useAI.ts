@@ -42,7 +42,9 @@ export function useAI() {
         message.trim(),
         state.user.language,
         currentZoneId || undefined,
-        state.user.seat_number
+        state.user.seat_number,
+        state.user.stadium_id,
+        state.user.accessibility_mode
       );
 
       const aiMessage: ChatMessage = {

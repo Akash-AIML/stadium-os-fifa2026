@@ -3,13 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Mic, MicOff, Bot, MapPin, Utensils, Users,
   Navigation, DoorOpen, Trophy, Zap, Map, RefreshCw,
-  Clock, Target, AlertTriangle, MessageSquare
+  Clock, Target, AlertTriangle, MessageSquare, Volume2, VolumeX
 } from 'lucide-react';
 import { sendChatMessage } from '../../services/api';
 import { ChatMessage, IntentType } from '../../shared/types';
 import { useApp } from '../../shared/context/AppContext';
 import { useVoice } from '../../shared/hooks/useVoice';
 import { useAI } from '../../shared/hooks/useAI';
+import { useTextToSpeech } from '../../shared/hooks/useTextToSpeech';
+import { useTranslation } from '../../shared/hooks/useTranslation';
 
 // ── Chip definitions (Lucide icons) ──────────────────────────────────────────
 const SUGGESTED_CHIPS = [
@@ -134,6 +136,8 @@ export function ChatWindow({ currentZoneId }: { currentZoneId?: string | null })
   const inputRef       = useRef<HTMLInputElement>(null);
   const { isListening, transcript, isSupported, startListening, stopListening, resetTranscript } = useVoice();
   const { sendMessage: sendAIMessage, isProcessing, suggestions, quickActions, setQuickActions } = useAI();
+  const { speak, stop: stopTTS, playingMessageId } = useTextToSpeech();
+  const { t } = useTranslation();
 
   // Auto-scroll
   useEffect(() => {
@@ -245,10 +249,10 @@ export function ChatWindow({ currentZoneId }: { currentZoneId?: string | null })
 
               <div>
                 <h3 className="text-base font-bold mb-1" style={{ color: 'hsl(var(--fg))' }}>
-                  Smart Guide AI Assistant
+                  {t('stadium_os_assistant')}
                 </h3>
                 <p className="text-xs max-w-[220px] leading-relaxed" style={{ color: 'hsl(var(--muted))' }}>
-                  Ask about navigation, crowd density, food, or match updates.
+                  {t('welcome_message')}
                 </p>
               </div>
 
@@ -376,6 +380,15 @@ export function ChatWindow({ currentZoneId }: { currentZoneId?: string | null })
                               Limited
                             </span>
                           )}
+                          <button
+                            onClick={() => speak(msg.content, state.user.language, msg.id)}
+                            className="flex items-center gap-1 text-[10px] ml-auto p-1 rounded hover:bg-slate-800 transition-colors"
+                            style={{ color: playingMessageId === msg.id ? '#06b6d4' : 'hsl(var(--muted-fg))' }}
+                            title="Speak Aloud"
+                          >
+                            {playingMessageId === msg.id ? <VolumeX className="w-3 h-3 text-cyan-400" /> : <Volume2 className="w-3 h-3" />}
+                            <span>Speak</span>
+                          </button>
                         </div>
 
                         {/* Quick follow-ups (last message only) */}

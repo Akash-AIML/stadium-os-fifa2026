@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Zap, Timer, Flag, Coffee, DoorOpen } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useSimulation } from '../hooks/useSimulation';
 
 // ── Match phases (icon refs, no emojis) ──────────────────────────────────────
 const TIMELINE_STEPS = [
@@ -32,7 +33,8 @@ function getPos(t: number) {
 }
 
 export function TimelineSlider() {
-  const { state, setSimulationTime } = useApp();
+  const { state } = useApp();
+  const { setMatchTime } = useSimulation();
   const [isDragging, setIsDragging]   = useState(false);
   const [hoveredStep, setHoveredStep] = useState<string | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -50,17 +52,17 @@ export function TimelineSlider() {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsDragging(true);
-    setSimulationTime(calculateTime(e.clientX));
-  }, [calculateTime, setSimulationTime]);
+    setMatchTime(calculateTime(e.clientX));
+  }, [calculateTime, setMatchTime]);
 
   useEffect(() => {
     if (!isDragging) return;
-    const onMove = (e: MouseEvent) => setSimulationTime(calculateTime(e.clientX));
+    const onMove = (e: MouseEvent) => setMatchTime(calculateTime(e.clientX));
     const onUp   = () => setIsDragging(false);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup',  onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [isDragging, calculateTime, setSimulationTime]);
+  }, [isDragging, calculateTime, setMatchTime]);
 
   const progressPct = getPos(state.simulation_time);
 
@@ -210,7 +212,7 @@ export function TimelineSlider() {
               }}
               onMouseEnter={() => setHoveredStep(step.id)}
               onMouseLeave={() => setHoveredStep(null)}
-              onClick={e => { e.stopPropagation(); setSimulationTime(step.time); }}
+              onClick={e => { e.stopPropagation(); setMatchTime(step.time); }}
               aria-label={`${step.label} (${step.time >= 0 ? step.time + "'" : 'Pre-Match'})`}
               whileHover={{ scale: 1.6 }}
               whileTap={{ scale: 1.1 }}
@@ -319,7 +321,7 @@ export function TimelineSlider() {
           return (
             <motion.button
               key={step.id}
-              onClick={() => setSimulationTime(step.time)}
+              onClick={() => setMatchTime(step.time)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all"
               style={{
                 background:  isActive ? `${step.color}12` : 'hsl(var(--elevated))',

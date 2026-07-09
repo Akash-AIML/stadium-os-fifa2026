@@ -1,228 +1,244 @@
-# FIFA 2026 Smart Guide
+# StadiumOS ⚽
+A smart, configuration-driven, accessible stadium operating system and fan assistant for the FIFA World Cup 2026.
 
-[![CI](https://github.com/yourusername/fifa-2026-smart-guide/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/fifa-2026-smart-guide/actions/workflows/ci.yml)
+StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-time crowd densities, and receive assistant support in their language — with every recommendation grounded in deterministic stadium geometry so the AI never invents routes or facilities.
 
-An AI-powered multilingual stadium assistant for FIFA 2026 World Cup, designed to help fans navigate stadiums, avoid crowds, and get real-time recommendations.
+Modelled venues: MetLife Stadium (FIFA name New Jersey Stadium), SoFi Stadium (Los Angeles), and Estadio Azteca (Mexico City). Languages: English, Spanish & French (the three host nation languages for the 2026 World Cup) — the entire client interface and response payloads support local translations.
 
-## 🎯 Challenge Vertical
+🌐 Live demo (Frontend): ""  
+🌐 Backend API (Hugging Face Spaces): ""  
 
-**Primary Persona:** Football Fans  
-**Vertical:** Multilingual Stadium Assistant + Navigation + Crowd Management
+---
 
-## ✨ Features
+## 🛠️ Technology Stack
+### Frontend
+- **Framework**: React 19 (Strict Mode) + TypeScript + Vite
+- **Styling**: Vanilla HSL-variable Custom Theme (Premium Glassmorphic Design, Harmonious Dark Mode)
+- **Animations**: Framer Motion (Fluid micro-animations, slide-overs, and route draw transitions)
+- **Icons**: Lucide React (Scalable vector glyphs replacing plain labels/emojis)
+- **Browser Web APIs**: 
+  - **Web Speech API SpeechSynthesis**: Browser-native Text-to-Speech (TTS) reading assistant replies aloud.
+  - **Web Speech API SpeechRecognition**: Native voice input to capture fan queries hands-free.
+- **State Management**: React Context (`AppProvider` singleton with global WebSocket stream handlers)
+- **Unit Testing**: Vitest + React Testing Library + JSDOM
 
-### For Fans
-- **AI Chat Assistant**: Multilingual conversational interface powered by Google Gemini
-- **Interactive Stadium Map**: Real-time crowd visualization with clickable zones
-- **Smart Navigation**: Optimal route planning avoiding congested areas
-- **Proactive Recommendations**: Food, restroom, exit, and safety suggestions
-- **Live Dashboard**: Stadium-wide status overview
+### Backend
+- **Framework**: FastAPI (Python 3.11+, fully async handlers, CORS setup)
+- **Pathfinder**: Deterministic Custom Weighted Dijkstra Solver (Adjacency-list graphs with step-free nodes & lobbies)
+- **GenAI Layer**: Google Generative AI (`google-generativeai` SDK leveraging Gemini 1.5 Flash)
+- **Schemas & Validators**: Pydantic v2 schemas + regex input sanitization
+- **Rate Limiting**: Custom token-bucket rate limiter middleware
+- **Real-time Server**: Bidirectional WebSockets (`/ws/{stadium_id}` channel)
+- **Packaging**: Docker (Multi-stage build)
 
-### Technical Highlights
-- **Rule-Based Intent Detection**: Efficient classification without extra AI calls
-- **Dijkstra's Algorithm**: Weighted pathfinding considering distance and crowd density
-- **Deterministic Simulation**: Match-time based crowd generation for demos
-- **Fallback System**: Graceful degradation when AI is unavailable
-- **Developer Mode**: Real-time debugging and system transparency
+---
 
-## 🏗️ Architecture
+## 🌟 Premium Features
+1. **Dijkstra Pathfinder with Accessibility Constraints**:
+   - standard pathfinding vs **Step-Free Accessibility Route** (wheelchair-accessible paths routing strictly through elevators, applying a `+1000.0` penalty to stairs). Routes render in vivid purple/violet vectors.
+2. **Interactive SVG Landmark Map**:
+   - Interactive maps with hover cards detailing named facilities, landmark identifiers, and status.
+   - Amenities (restrooms, food concessions, exits, medical aid) rendered as clean Lucide Icons positioned at precise coordinate nodes.
+3. **Real-time Bidirectional WebSockets**:
+   - Replaced REST polling with a single WebSocket stream per stadium location, pushing crowd densities, active alerts, recommendations, and simulation ticks down to the client.
+4. **Gemini Smart Guide AI Assistant**:
+   - Explainable AI explaining routing, reasoning (congestion avoided), estimated time saved, confidence scores, and alternative paths.
+   - Prompt-injection defenses wrapping user messages in strict delimiter schemas.
+5. **Browser-Native Voice & TTS Assistant**:
+   - **Voice Input**: Translate voice utterances to text queries natively.
+   - **TTS Audio (Speak)**: Speak button 🔊 next to chatbot messages reads text in the user's active language voice natively.
+6. **Local Translation & Multi-language Support**:
+   - Client-side dictionary translating the UI without LLM queries to protect free-tier API limits.
+   - Supported languages: **English, Spanish, French, German, Portuguese, Arabic, Japanese, Chinese, Hindi, and Tamil**.
+7. **Simulation Sandbox**:
+   - Live timeline slider with match stage scenarios (Kickoff, Halftime, Fulltime post-match) dynamically scaling zone congestion, gate surges, and concession wait times.
+
+---
+
+## 2. Approach & Logic — Rules Before LLM
+The core design principle is **deterministic decisions first, language model last**:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     React Frontend                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │   Map    │  │   Chat   │  │Dashboard │  │Recommend │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │  /chat   │  │  /crowd  │  │ /navigate│  │/recommend│   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-│         │             │             │              │        │
-│         ▼             ▼             ▼              ▼        │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              Services Layer                         │   │
-│  │  Gemini │ Crowd Engine │ Navigation │ Recommendation│   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-                  Google Gemini API
+UserContext ──▶ Rules & Path Engines (Dijkstra) ──▶ Resolved Facts ──▶ LLM Phrasing ──▶ Answer
+                  • Resolve active stadium config       • Shortest path list
+                  • Calculate Dijkstra route graph      • Crowd density level
+                  • Apply accessibility penalties       • Step-free route list
+                  • Locate nearest AED / safety zone    • Offline fallback state
 ```
 
-## 🚀 Quick Start
+1. The pathfinding and simulation layers resolve every fact — the shortest path, the simulated crowd level, the accessibility modes, and nearest facilities — using the structured metadata configurations. No LLM is involved in routing decisions.
+2. The LLM only phrases and explains those already-resolved facts into natural language in the requested language. It is explicitly forbidden (via strict system prompt formatting instructions) from inventing facilities or following instructions embedded in user questions.
+3. If the user asks a standard navigational query without custom text, the application short-circuits and produces the answer from offline EN/ES/FR template mappings, avoiding LLM calls entirely.
+
+### Rules Implemented
+| Rule | Behaviour |
+| :--- | :--- |
+| **Wheelchair / Step-Free** | Applies a `+1000.0` traversal penalty to non-accessible nodes (stairs/stairs). Pathfinding routes strictly through elevator lobbies. Routes render in violet/purple. |
+| **Emergency Guidance** | Routes dynamically to the nearest safety assembly point and medical AED equipment in emergency modes. |
+| **Crowd Surge Adjustments** | Timeline adjustments automatically scale crowd levels. Gates and concourses surge near kickoff, restrooms and concessions peak at halftime. |
+| **Explainable AI** | Gemini acts as a translation layer, returning layout structured options: Recommendation, Reasoning, Time Saved, Confidence Score, and Alternative Options. |
+
+---
+
+## 3. How It Works — Setup & Run
 
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- npm or yarn
 
 ### Backend Setup
-
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Activate virtualenv (Linux/macOS)
+source .venv/bin/activate
+# Windows:
+# .venv\Scripts\activate
+
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY
-uvicorn app.main:app --reload
+# Edit .env and supply your GEMINI_API_KEY
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+Open `http://localhost:8000/docs` to view the interactive FastAPI documentation.
 
 ### Frontend Setup
-
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+Open `http://localhost:5173` to interact with the application.
 
-Open http://localhost:5173
+---
 
-## 📁 Project Structure
+## 🚀 Deployment
 
+### Backend — Hugging Face Spaces (Docker Space)
+1. Create a new Space on [Hugging Face](https://huggingface.co/new-space).
+2. Choose **Docker** as the SDK template.
+3. Set your environment variables in Space Settings:
+   - `GEMINI_API_KEY` (Your Google Gemini key. If unset, it falls back to MockLLM offline mode).
+4. Push the contents of the `backend/` directory to the Space repository. Hugging Face will build the container from the included Dockerfile and host the API.
+
+### Frontend — Vercel
+1. Import the `frontend/` directory to [Vercel](https://vercel.com).
+2. Configure build settings:
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
+3. Configure the environment variables:
+   - Set the API URL to point to your Hugging Face Space backend URL.
+4. Deploy the project.
+
+---
+
+## 4. Assumptions
+- Stadium layouts (MetLife, SoFi, Azteca), facilities coordinates, and adjacency lists are illustrative configurations, not official CAD data.
+- Crowd densities are simulated dynamically from the simulation match timeline rather than live sensor feeds.
+- The Google Gemini key is optional; when unset, the backend MockLLM provides offline functionality.
+
+---
+
+## 5. Quality Attributes
+
+### 🔒 Security
+- **No Secrets in Code**: Environment variables manage all configurations. Unknown API key leads to MockLLM offline fallback.
+- **Input Validation**: Strictly enforced Pydantic v2 schemas reject malformed zone IDs or unauthorized request parameters.
+- **Prompt-Injection Defense**: User text is wrapped in clear system prompt delimiters and treated as raw data only. Dijkstra path calculations happen before the LLM step, preventing injection attacks from altering routes.
+- **Rate Limiting**: Protects backend endpoints against spamming using a token-bucket rate limiter.
+
+### ⚡ Efficiency
+- **JSON Configuration Cache**: Stadium metadata and graphs load once at startup.
+- **Short-circuiting**: Basic navigation and crowd requests resolve instantly via templates without triggering LLM calls.
+- **Async Endpoints**: FastAPI runs non-blocking handlers to handle concurrent requests efficiently.
+- **Connection Singleton**: WebSocket uses a module-level global cache with debounced cleanup to avoid duplicate TCP sockets.
+
+### ♿ Accessibility — WCAG 2.1 AA
+- **Visual Paths**: Wheelchair-accessible routes are clearly rendered in high-contrast purple/violet vectors.
+- **Semantic HTML**: Features logical heading structures, single `<h1>` headers, landmarks, and Tab-nav outlines.
+- **A11y Theme**: A high-visibility mode provides high-contrast borders and large text layouts.
+
+### 🧪 Testing
+- **Backend Tests**: 39 test cases verifying Dijkstra calculations, accessibility constraints, rate-limiters, and timeline generators. Run using:
+  ```bash
+  cd backend && pytest tests/ -v
+  ```
+- **Frontend Tests**: 6 Vitest component testing for maps, dashboards, and chat assistants. Run using:
+  ```bash
+  cd frontend && npx vitest run
+  ```
+
+---
+
+## 6. Architecture & File Tree
+
+```
+                       ┌─────────────────────────────┐
+  Vercel Frontend ────▶│  FastAPI Backend (HF Space) │
+  (React 19 + Vite)    │  • CORS + Security headers  │
+                       │  • Rate Limiting Middleware │
+                       └──────────────┬──────────────┘
+                                      │ POST /api/v1/chat (Context)
+                                      ▼
+                       ┌─────────────────────────────┐
+                       │  Services Engine            │
+                       │  ├─ stadiums.py (Configs)    │
+                       │  ├─ navigation.py (Dijkstra)│
+                       │  └─ crowd.py (Simulation)    │
+                       └──────────────┬──────────────┘
+                                      │ Resolved Path & Facts
+                                      ▼
+                       ┌─────────────────────────────┐
+                       │  LLM Phrasing Layer         │
+                       │  ├─ MockLLM (Offline)       │
+                       │  └─ Gemini API (Flash)      │
+                       └─────────────────────────────┘
+```
+
+### Directory Structure
 ```
 fifa-2026-smart-guide/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── config.py            # Settings
+│   │   ├── main.py              # FastAPI startup
+│   │   ├── config.py            # Environment configurations
 │   │   ├── models.py            # Pydantic schemas
 │   │   ├── services/
-│   │   │   ├── gemini.py        # AI client
-│   │   │   ├── crowd.py         # Simulation engine
-│   │   │   ├── navigation.py    # Dijkstra's algorithm
-│   │   │   └── recommendation.py# Suggestions engine
+│   │   │   ├── gemini.py        # Gemini client
+│   │   │   ├── crowd.py         # Crowd data calculator
+│   │   │   ├── navigation.py    # Weighted Dijkstra pathfinder
+│   │   │   ├── recommendation.py# Facilities recommendations
+│   │   │   └── stadiums.py      # Venues setup dictionary
 │   │   ├── routes/
-│   │   │   ├── chat.py          # Chat endpoint
-│   │   │   ├── crowd.py         # Crowd data endpoints
-│   │   │   └── navigate.py      # Route endpoint
+│   │   │   ├── chat.py          # LLM assistant endpoint
+│   │   │   ├── crowd.py         # Crowd snapshots
+│   │   │   └── navigate.py      # Dijkstra path endpoint
 │   │   └── utils/
-│   │       ├── validators.py    # Input sanitization
-│   │       ├── intent.py        # Rule-based intent detection
-│   │       └── exceptions.py    # Custom errors
+│   │       ├── rate_limit.py    # Token-bucket limiter
+│   │       └── validators.py    # Regex sanitization
 │   ├── tests/
+│   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── features/
-│   │   │   ├── chat/
-│   │   │   ├── navigation/
-│   │   │   └── crowd/
+│   │   │   ├── chat/            # Chat window UI components
+│   │   │   ├── navigation/      # Interactive SVG StadiumMap
+│   │   │   └── crowd/           # Dashboard gauges & leaderboard
 │   │   ├── shared/
-│   │   │   ├── components/
-│   │   │   ├── hooks/
-│   │   │   ├── context/
-│   │   │   └── types/
+│   │   │   ├── components/      # Navbars, Timeline, DevModePanel
+│   │   │   ├── hooks/           # useAI, useSimulation, useTranslation hooks
+│   │   │   ├── context/         # AppProvider central state & WebSocket
+│   │   │   └── utils/           # Frontend stadiums configurations
 │   │   └── services/
+│   │       └── api.ts           # Axios/Fetch API client
+│   ├── tests/
 │   └── package.json
-├── .github/workflows/ci.yml
 └── README.md
 ```
 
-## 🔌 API Endpoints
+---
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/crowd/` | Get all crowd snapshots |
-| `GET` | `/api/v1/crowd/alerts` | Get active alerts |
-| `GET` | `/api/v1/crowd/recommendations` | Get proactive recommendations |
-| `GET` | `/api/v1/navigate/` | Get optimal route |
-| `POST` | `/api/v1/chat/` | Send chat message |
-| `GET` | `/health` | Health check |
-
-## 🎮 Demo Mode
-
-Use the simulation controls in the header to demonstrate different match scenarios:
-
-- **Pre-Match (15 min)**: Gates and entrances are busy
-- **Halftime (50 min)**: Food courts and restrooms congested
-- **Full-Time (95 min)**: Exits are crowded
-
-## ♿ Accessibility
-
-- ✅ WCAG AA compliant
-- ✅ Keyboard navigation (Tab, Enter, Escape)
-- ✅ Screen reader support with ARIA labels
-- ✅ High contrast mode support
-- ✅ Focus indicators on all interactive elements
-- ✅ Reduced motion support via `prefers-reduced-motion`
-
-## 🔒 Security Features
-
-- Input validation with Pydantic
-- Prompt injection protection
-- Rate limiting (20 requests/minute)
-- CORS configuration
-- HTML/JSX sanitization
-- Environment variable isolation
-
-## 🧪 Testing
-
-### Backend Tests
-
-```bash
-cd backend
-pytest tests/ -v
-```
-
-**Coverage**: 32 tests covering crowd simulation, navigation, recommendations, and validation.
-
-### Frontend Tests
-
-```bash
-cd frontend
-npm run test
-```
-
-## 📊 Evaluation Criteria Mapping
-
-| Criteria | Implementation |
-|----------|----------------|
-| **Code Quality** | Feature-based architecture, typed APIs, service layers, clean separation of concerns |
-| **Security** | Input validation, prompt injection protection, rate limiting, CORS, env isolation |
-| **Efficiency** | SVG map, memoization, single AI call, context compression, lazy loading |
-| **Testing** | 32 backend tests, frontend tests, mocked AI integration, deterministic scenarios |
-| **Accessibility** | WCAG AA, keyboard nav, screen readers, high contrast, reduced motion |
-
-## 🛠️ Tech Stack
-
-**Frontend**
-- React 19 + TypeScript
-- Tailwind CSS
-- Vite
-
-**Backend**
-- FastAPI
-- Pydantic
-- Google Generative AI
-
-**AI**
-- Google Gemini 2.5 Flash
-
-## 📝 Assumptions
-
-1. Gemini API key is provided via environment variable
-2. Stadium layout is fixed (17 zones)
-3. No real-time data source (uses deterministic simulation)
-4. Single-page application for demo purposes
-
-## 🚀 Future Enhancements
-
-- Real-time GPS integration
-- Push notifications for alerts
-- Multi-stadium support
-- Machine learning for crowd prediction
-- Volunteer/staff mobile app
-- WebSocket for live updates
-
-## 📄 License
-
-MIT License - Built for FIFA 2026 Hackathon
-
-## 👥 Team
-
-Built with ❤️ for the Google GenAI Challenge
+## 👥 License
+MIT License - Built for the FIFA 2026 Stadium Challenge.

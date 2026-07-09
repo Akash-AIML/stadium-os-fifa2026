@@ -48,14 +48,21 @@ class CrowdEngine:
         self.base_time = datetime.now()
         self.match_time_minutes = 0
 
+    def get_stadium_config(self, stadium_id: str = "metlife") -> dict:
+        from app.services.stadiums import STADIUMS_CONFIG
+        if not stadium_id or stadium_id not in STADIUMS_CONFIG:
+            stadium_id = "metlife"
+        return STADIUMS_CONFIG[stadium_id]
+
     def set_match_time(self, minutes: int) -> None:
         self.match_time_minutes = max(0, min(120, minutes))
 
-    def get_all_zones(self) -> list[Zone]:
-        snapshots = self.get_all_snapshots()
+    def get_all_zones(self, stadium_id: str = "metlife") -> list[Zone]:
+        config = self.get_stadium_config(stadium_id)
+        snapshots = self.get_all_snapshots(stadium_id)
         snapshot_map = {s.zone_id: s for s in snapshots}
         zones = []
-        for z in STADIUM_ZONES:
+        for z in config["zones"]:
             snapshot = snapshot_map.get(z["id"])
             zones.append(
                 Zone(
@@ -68,15 +75,17 @@ class CrowdEngine:
             )
         return zones
 
-    def get_all_snapshots(self) -> list[CrowdSnapshot]:
+    def get_all_snapshots(self, stadium_id: str = "metlife") -> list[CrowdSnapshot]:
+        config = self.get_stadium_config(stadium_id)
         snapshots = []
-        for zone in STADIUM_ZONES:
-            snapshot = self.get_snapshot(zone["id"])
+        for zone in config["zones"]:
+            snapshot = self.get_snapshot(zone["id"], stadium_id)
             snapshots.append(snapshot)
         return snapshots
 
-    def get_snapshot(self, zone_id: str) -> CrowdSnapshot:
-        zone = next((z for z in STADIUM_ZONES if z["id"] == zone_id), None)
+    def get_snapshot(self, zone_id: str, stadium_id: str = "metlife") -> CrowdSnapshot:
+        config = self.get_stadium_config(stadium_id)
+        zone = next((z for z in config["zones"] if z["id"] == zone_id), None)
         if not zone:
             raise ValueError(f"Zone {zone_id} not found")
 
@@ -143,10 +152,10 @@ class CrowdEngine:
         else:
             return ZoneStatus.CONGESTED
 
-    def get_alerts(self) -> list[Alert]:
+    def get_alerts(self, stadium_id: str = "metlife") -> list[Alert]:
         alerts = []
-        snapshots = self.get_all_snapshots()
-        for i, snapshot in enumerate(snapshots):
+        snapshots = self.get_all_snapshots(stadium_id)
+        for snapshot in snapshots:
             if snapshot.status == ZoneStatus.CONGESTED:
                 alerts.append(
                     Alert(
@@ -158,13 +167,15 @@ class CrowdEngine:
                 )
         return alerts
 
-    def get_relevant_zones(self, zone_id: str | None = None) -> list[CrowdSnapshot]:
-        if not zone_id or zone_id not in ZONE_GRAPH:
-            return self.get_all_snapshots()[:5]
-        neighbors = ZONE_GRAPH.get(zone_id, [])
-        relevant = [self.get_snapshot(zone_id)]
+    def get_relevant_zones(self, zone_id: str | None = None, stadium_id: str = "metlife") -> list[CrowdSnapshot]:
+        config = self.get_stadium_config(stadium_id)
+        zone_graph = config["zone_graph"]
+        if not zone_id or zone_id not in zone_graph:
+            return self.get_all_snapshots(stadium_id)[:5]
+        neighbors = zone_graph.get(zone_id, [])
+        relevant = [self.get_snapshot(zone_id, stadium_id)]
         for neighbor in neighbors[:4]:
-            relevant.append(self.get_snapshot(neighbor))
+            relevant.append(self.get_snapshot(neighbor, stadium_id))
         return relevant
 
 

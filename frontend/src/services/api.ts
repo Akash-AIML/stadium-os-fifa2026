@@ -12,25 +12,36 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return data.data;
 }
 
-export async function fetchCrowdData(zoneId?: string) {
-  const url = zoneId ? `${API_BASE}/crowd/?zone_id=${zoneId}` : `${API_BASE}/crowd/`;
+export async function fetchCrowdData(zoneId?: string, stadiumId?: string) {
+  let url = `${API_BASE}/crowd/`;
+  const params = new URLSearchParams();
+  if (zoneId) params.append('zone_id', zoneId);
+  if (stadiumId) params.append('stadium_id', stadiumId);
+  if (params.toString()) url += `?${params.toString()}`;
   const response = await fetch(url);
   return handleResponse<any[]>(response);
 }
 
-export async function fetchAlerts() {
-  const response = await fetch(`${API_BASE}/crowd/alerts`);
-  return handleResponse<any[]>(response);
-}
-
-export async function fetchRecommendations(zoneId?: string) {
-  const url = zoneId ? `${API_BASE}/crowd/recommendations?zone_id=${zoneId}` : `${API_BASE}/crowd/recommendations`;
+export async function fetchAlerts(stadiumId?: string) {
+  const url = stadiumId ? `${API_BASE}/crowd/alerts?stadium_id=${stadiumId}` : `${API_BASE}/crowd/alerts`;
   const response = await fetch(url);
   return handleResponse<any[]>(response);
 }
 
-export async function fetchRoute(fromZone: string, toZone: string) {
-  const url = `${API_BASE}/navigate/?from_zone=${fromZone}&to_zone=${toZone}`;
+export async function fetchRecommendations(zoneId?: string, stadiumId?: string) {
+  let url = `${API_BASE}/crowd/recommendations`;
+  const params = new URLSearchParams();
+  if (zoneId) params.append('zone_id', zoneId);
+  if (stadiumId) params.append('stadium_id', stadiumId);
+  if (params.toString()) url += `?${params.toString()}`;
+  const response = await fetch(url);
+  return handleResponse<any[]>(response);
+}
+
+export async function fetchRoute(fromZone: string, toZone: string, stadiumId?: string, accessibilityMode?: boolean) {
+  let url = `${API_BASE}/navigate/?from_zone=${fromZone}&to_zone=${toZone}`;
+  if (stadiumId) url += `&stadium_id=${stadiumId}`;
+  if (accessibilityMode !== undefined) url += `&accessibility_mode=${accessibilityMode}`;
   const response = await fetch(url);
   return handleResponse<any>(response);
 }
@@ -39,7 +50,9 @@ export async function sendChatMessage(
   message: string,
   language: string,
   currentZoneId?: string,
-  seatNumber?: string
+  seatNumber?: string,
+  stadiumId?: string,
+  accessibilityMode?: boolean
 ) {
   const response = await fetch(`${API_BASE}/chat/`, {
     method: 'POST',
@@ -49,6 +62,8 @@ export async function sendChatMessage(
       language,
       current_zone_id: currentZoneId,
       seat_number: seatNumber,
+      stadium_id: stadiumId,
+      accessibility_mode: accessibilityMode,
     }),
   });
   return handleResponse<any>(response);

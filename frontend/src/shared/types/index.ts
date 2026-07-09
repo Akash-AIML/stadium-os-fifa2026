@@ -69,6 +69,8 @@ export interface UserProfile {
   role: 'fan' | 'staff';
   language: string;
   seat_number?: string;
+  stadium_id?: 'metlife' | 'sofi' | 'azteca';
+  accessibility_mode?: boolean;
 }
 
 export interface AppState {

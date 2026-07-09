@@ -3,12 +3,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Search, Globe, Sun, Moon, Monitor, ChevronDown,
   Check, Settings, Zap, Timer, Flag, MapPin, Utensils,
-  DoorOpen, Users, Activity, Cpu, Bot
+  DoorOpen, Users, Activity, Cpu, Bot, Accessibility
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../hooks/useTheme';
 import { useLanguage } from '../hooks/useLanguage';
+import { useTranslation } from '../hooks/useTranslation';
 import { STADIUM_ZONES_METADATA } from '../utils/zones';
+import { STADIUMS_CONFIG } from '../utils/stadiums';
+import { useSimulation } from '../hooks/useSimulation';
 
 const QUICK_ACTIONS = [
   { label: 'Navigate to Seat', icon: MapPin,     action: 'nav_seat',  color: 'text-cyan-400'   },
@@ -36,15 +39,19 @@ interface TopNavbarProps {
 }
 
 export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
-  const { state, toggleDevMode, setSimulationTime, setCurrentZone } = useApp();
+  const { state, setUser, toggleDevMode, setCurrentZone } = useApp();
+  const { setMatchTime } = useSimulation();
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { currentLanguage, changeLanguage, languages } = useLanguage();
+  const { t } = useTranslation();
   const [showLanguage, setShowLanguage] = useState(false);
   const [showTheme, setShowTheme]       = useState(false);
   const [showCommand, setShowCommand]   = useState(false);
+  const [showStadiumDropdown, setShowStadiumDropdown] = useState(false);
   const [searchQuery, setSearchQuery]   = useState('');
   const langRef  = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
+  const stadiumRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // ── Close dropdowns on outside click ───────────────────────
@@ -52,6 +59,7 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
     const handleClickOutside = (e: MouseEvent) => {
       if (langRef.current  && !langRef.current.contains(e.target as Node))  setShowLanguage(false);
       if (themeRef.current && !themeRef.current.contains(e.target as Node)) setShowTheme(false);
+      if (stadiumRef.current && !stadiumRef.current.contains(e.target as Node)) setShowStadiumDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -95,11 +103,13 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
     .slice(0, 9);
 
   // ── Match phase helpers ─────────────────────────────────────
-  const t = state.simulation_time;
+  const activeStadium = state.user.stadium_id || 'metlife';
+  const currentStadium = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
+  const simTime = state.simulation_time;
   const phases = [
-    { label: 'Pre-Match', Icon: Zap,   time: 15, active: t <= 30,           color: 'emerald' },
-    { label: 'Halftime',  Icon: Timer, time: 50, active: t > 30 && t <= 75, color: 'amber'   },
-    { label: 'Full-Time', Icon: Flag,  time: 95, active: t > 75,            color: 'emerald' },
+    { label: 'Pre-Match', Icon: Zap,   time: 15, active: simTime <= 30,           color: 'emerald' },
+    { label: 'Halftime',  Icon: Timer, time: 50, active: simTime > 30 && simTime <= 75, color: 'amber'   },
+    { label: 'Full-Time', Icon: Flag,  time: 95, active: simTime > 75,            color: 'emerald' },
   ];
 
   const ThemeIcon = resolvedTheme === 'dark' ? Moon : resolvedTheme === 'light' ? Sun : Monitor;
@@ -142,12 +152,69 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
               </div>
             </div>
 
+            {/* Stadium Dropdown Selector */}
+            <div className="relative flex-shrink-0" ref={stadiumRef}>
+              <motion.button
+                onClick={() => setShowStadiumDropdown(p => !p)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
+                style={{
+                  background: 'var(--glass-bg)',
+                  borderColor: 'var(--glass-border)',
+                  color: 'hsl(var(--fg))'
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                aria-haspopup="listbox"
+                aria-expanded={showStadiumDropdown}
+              >
+                <span>🏟️ {currentStadium.name}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showStadiumDropdown ? 'rotate-180' : ''}`} />
+              </motion.button>
+              <AnimatePresence>
+                {showStadiumDropdown && (
+                  <motion.div
+                    className="absolute left-0 mt-2 w-56 rounded-xl border shadow-lg z-50 p-1"
+                    style={{
+                      background: 'hsl(var(--elevated))',
+                      borderColor: 'var(--glass-border)',
+                    }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                  >
+                    {Object.values(STADIUMS_CONFIG).map((stadium) => (
+                      <button
+                        key={stadium.id}
+                        onClick={() => {
+                          setUser({ stadium_id: stadium.id as any });
+                          setShowStadiumDropdown(false);
+                        }}
+                        className="flex w-full items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-[hsl(var(--floating))] transition-colors"
+                        style={{
+                          color: activeStadium === stadium.id ? 'hsl(var(--primary))' : 'hsl(var(--fg))',
+                          fontWeight: activeStadium === stadium.id ? 'bold' : 'normal',
+                        }}
+                      >
+                        <div className="text-left">
+                          <div>{stadium.name}</div>
+                          <div className="text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>
+                            {stadium.city} • {stadium.capacity} seats
+                          </div>
+                        </div>
+                        {activeStadium === stadium.id && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             {/* ── Center: Match Phases ─────────────────────── */}
             <div className="hidden md:flex items-center gap-1.5">
               {phases.map(({ label, Icon, time, active, color }) => (
                 <motion.button
                   key={label}
-                  onClick={() => setSimulationTime(time)}
+                  onClick={() => setMatchTime(time)}
                   className={[
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
                     active
@@ -175,7 +242,7 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
                 }}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
-                {t}'
+                {simTime}'
               </div>
             </div>
 
@@ -223,7 +290,26 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
                 aria-pressed={showChat}
               >
                 <Bot className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">AI Copilot</span>
+                <span className="hidden sm:inline">{t('nav_assistant')}</span>
+              </motion.button>
+
+              {/* Accessibility Mode Toggle Button */}
+              <motion.button
+                onClick={() => setUser({ accessibility_mode: !state.user.accessibility_mode })}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border transition-all font-semibold"
+                style={{
+                  background: state.user.accessibility_mode ? 'rgba(168,85,247,0.15)' : 'hsl(var(--elevated))',
+                  borderColor: state.user.accessibility_mode ? 'rgba(168,85,247,0.4)' : 'hsl(var(--border))',
+                  color: state.user.accessibility_mode ? '#a855f7' : 'hsl(var(--muted))',
+                }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                title="Accessibility Mode (Wheelchair/Elevator Routing)"
+                aria-label="Toggle accessibility mode"
+                aria-pressed={state.user.accessibility_mode}
+              >
+                <Accessibility className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">{t('nav_accessibility')}</span>
               </motion.button>
 
               {/* Language selector */}

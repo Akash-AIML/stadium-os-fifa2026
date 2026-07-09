@@ -4,11 +4,14 @@ from app.services.crowd import STADIUM_ZONES
 
 class RecommendationEngine:
     def __init__(self):
-        self.zone_types = {z["id"]: z["type"] for z in STADIUM_ZONES}
+        self.zone_types = {}
 
     def generate(
-        self, crowd_data: list[CrowdSnapshot], current_zone_id: str | None = None
+        self, crowd_data: list[CrowdSnapshot], current_zone_id: str | None = None, stadium_id: str = "metlife"
     ) -> list[Recommendation]:
+        from app.services.stadiums import STADIUMS_CONFIG
+        config = STADIUMS_CONFIG.get(stadium_id, STADIUMS_CONFIG["metlife"])
+        self.zone_types = {z["id"]: z["type"] for z in config["zones"]}
         recommendations = []
 
         food_recommendations = self._recommend_food(crowd_data)
@@ -23,7 +26,7 @@ class RecommendationEngine:
         if exit_recommendations:
             recommendations.append(exit_recommendations)
 
-        safety_recommendations = self._recommend_safety(crowd_data, current_zone_id)
+        safety_recommendations = self._recommend_safety(crowd_data, current_zone_id, stadium_id)
         if safety_recommendations:
             recommendations.append(safety_recommendations)
 
@@ -123,7 +126,7 @@ class RecommendationEngine:
         return None
 
     def _recommend_safety(
-        self, crowd_data: list[CrowdSnapshot], current_zone_id: str | None
+        self, crowd_data: list[CrowdSnapshot], current_zone_id: str | None, stadium_id: str = "metlife"
     ) -> Recommendation | None:
         if not current_zone_id:
             return None
@@ -132,7 +135,7 @@ class RecommendationEngine:
         if not current or current.status != ZoneStatus.CONGESTED:
             return None
 
-        neighbors = self._get_neighbors(current_zone_id)
+        neighbors = self._get_neighbors(current_zone_id, stadium_id)
         clear_neighbors = [
             c for c in crowd_data if c.zone_id in neighbors and c.status != ZoneStatus.CONGESTED
         ]
@@ -149,9 +152,10 @@ class RecommendationEngine:
 
         return None
 
-    def _get_neighbors(self, zone_id: str) -> list[str]:
-        from app.services.crowd import ZONE_GRAPH
-        return ZONE_GRAPH.get(zone_id, [])
+    def _get_neighbors(self, zone_id: str, stadium_id: str = "metlife") -> list[str]:
+        from app.services.stadiums import STADIUMS_CONFIG
+        config = STADIUMS_CONFIG.get(stadium_id, STADIUMS_CONFIG["metlife"])
+        return config["zone_graph"].get(zone_id, [])
 
 
 recommendation_engine = RecommendationEngine()

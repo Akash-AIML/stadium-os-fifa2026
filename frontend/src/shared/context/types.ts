@@ -10,6 +10,7 @@ interface AppContextType {
   addChatMessage: (message: ChatMessage) => void;
   setSimulationTime: (time: number) => void;
   toggleDevMode: () => void;
+  sendWSMessage: (msg: any) => void;
 }
 
 export type { AppState, AppContextType };

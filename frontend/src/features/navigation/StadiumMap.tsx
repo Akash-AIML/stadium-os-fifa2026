@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Layers, Users, Timer, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Layers, Users, Timer, TrendingUp, TrendingDown, Minus, Map, Navigation, Utensils, DoorOpen, Activity } from 'lucide-react';
 import { Zone, ZoneStatus, CrowdZone } from '../../shared/types';
-import { STADIUM_ZONES_METADATA } from '../../shared/utils/zones';
+import { STADIUM_ZONES_METADATA as DEFAULT_STADIUM_ZONES } from '../../shared/utils/zones';
+import { STADIUMS_CONFIG } from '../../shared/utils/stadiums';
 import { useHeatMap } from '../../shared/hooks/useHeatMap';
 
 interface StadiumMapProps {
@@ -11,6 +12,7 @@ interface StadiumMapProps {
   onZoneClick: (zoneId: string) => void;
   activeRoute?: any | null;
   showHeatmap?: boolean;
+  stadiumId?: 'metlife' | 'sofi' | 'azteca';
 }
 
 // ── Zone status colors ────────────────────────────────────────────────────────
@@ -24,7 +26,7 @@ const ZONE_COLORS: Record<ZoneStatus, { fill: string; stroke: string; glow: stri
 // ── Tooltip positioned outside SVG (DOM overlay) ──────────────────────────────
 function ZoneTooltip({ zone, meta, color }: {
   zone: CrowdZone;
-  meta: { label: string; type: string; location: [number, number] };
+  meta: { label: string; type: string; location: [number, number]; landmark?: string };
   color: { fill: string };
 }) {
   const TrendIcon = zone.trend === 'up' ? TrendingUp : zone.trend === 'down' ? TrendingDown : Minus;
@@ -84,19 +86,56 @@ function ZoneTooltip({ zone, meta, color }: {
       >
         {zone.status}
       </div>
+      {/* Landmark */}
+      {meta.landmark && (
+        <div className="mt-2 pt-2 border-t text-[10px] text-slate-400 text-left leading-normal" style={{ borderColor: 'var(--glass-border)' }}>
+          <span className="font-bold text-slate-300 block mb-0.5">📍 Landmark:</span>
+          {meta.landmark}
+        </div>
+      )}
     </motion.div>
   );
 }
 
-export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, showHeatmap = false }: StadiumMapProps) {
+export function StadiumMap({
+  zones,
+  selectedZoneId,
+  onZoneClick,
+  activeRoute,
+  showHeatmap = false,
+  stadiumId = 'metlife'
+}: StadiumMapProps) {
+  const [viewMode, setViewMode]           = useState<'indoor' | 'outdoor'>('indoor');
+  const [accessibleMode, setAccessibleMode] = useState(false);
   const [hoveredZone, setHoveredZone]     = useState<string | null>(null);
+
+  const getZoneIcon = (type: string) => {
+    switch (type) {
+      case 'wc':
+        return Users;
+      case 'food':
+        return Utensils;
+      case 'medical':
+        return Activity;
+      case 'exit':
+        return DoorOpen;
+      case 'entrance':
+        return DoorOpen;
+      default:
+        return null;
+    }
+  };
   const [mapScale, setMapScale]           = useState(1);
   const [mapPosition, setMapPosition]     = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging]       = useState(false);
   const [heatmapVisible, setHeatmapVisible] = useState(showHeatmap);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const svgRef       = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { heatmapZones } = useHeatMap(zones as any);
+
+  const stadiumConfig = STADIUMS_CONFIG[stadiumId] || STADIUMS_CONFIG.metlife;
+  const STADIUM_ZONES_METADATA = stadiumConfig.zones;
 
   // ── Wheel zoom ────────────────────────────────────────────────
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -142,7 +181,7 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
         {/* Glow halo */}
         <motion.path
           d={d} fill="none"
-          stroke="#06b6d4" strokeWidth={10} strokeLinecap="round" strokeLinejoin="round"
+          stroke={accessibleMode ? '#c084fc' : '#06b6d4'} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round"
           opacity={0.08}
           initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
           transition={{ duration: 1.2, ease: 'easeOut' }}
@@ -150,7 +189,7 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
         {/* Solid line */}
         <motion.path
           d={d} fill="none"
-          stroke="url(#routeGradient)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+          stroke={accessibleMode ? '#a855f7' : 'url(#routeGradient)'} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
           filter="url(#route-glow)"
           initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
           transition={{ duration: 1.2, ease: 'easeOut' }}
@@ -204,6 +243,7 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
 
   return (
     <div
+      ref={containerRef}
       className="relative w-full h-full overflow-hidden"
       style={{
         borderRadius: 20,
@@ -212,13 +252,88 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
       }}
       onWheel={handleWheel}
     >
-      {/* Background gradient */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse 80% 60% at 50% 50%, hsl(188 91% 43% / 0.04) 0%, transparent 70%), hsl(var(--surface))',
-        }}
-      />
+      {/* ── View Mode Toggle Bar (Floating) ─────────────────── */}
+      <div className="absolute top-3 left-3 z-30 flex gap-1 p-0.5 rounded-xl border bg-slate-950/65 backdrop-blur-md" style={{ borderColor: 'var(--glass-border)' }}>
+        <button
+          onClick={() => setViewMode('indoor')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all`}
+          style={{
+            background: viewMode === 'indoor' ? 'hsl(var(--primary))' : 'transparent',
+            color: viewMode === 'indoor' ? 'white' : 'hsl(var(--muted))',
+          }}
+          aria-pressed={viewMode === 'indoor'}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          Indoor View
+        </button>
+        <button
+          onClick={() => setViewMode('outdoor')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all`}
+          style={{
+            background: viewMode === 'outdoor' ? 'hsl(var(--primary))' : 'transparent',
+            color: viewMode === 'outdoor' ? 'white' : 'hsl(var(--muted))',
+          }}
+          aria-pressed={viewMode === 'outdoor'}
+        >
+          <Map className="w-3.5 h-3.5" />
+          Outdoor Transit
+        </button>
+      </div>
+
+      {viewMode === 'outdoor' ? (
+        <div className="w-full h-full relative" style={{ background: '#020408' }}>
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3020.2443653198083!2d-74.07689108459239!3d40.813577979321!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c2f861ad5d0237%3A0x8f2d5bb0091ff6d2!2sMetLife%20Stadium!5e0!3m2!1sen!2sus!4v1680000000000!5m2!1sen!2sus"
+            width="100%"
+            height="100%"
+            style={{ border: 0, opacity: 0.85, filter: 'invert(90%) hue-rotate(180deg) contrast(110%) brightness(95%)' }}
+            allowFullScreen={false}
+            loading="lazy"
+            title="Outdoor Transit Map"
+          />
+          {/* Floating Bottom Arrival banner */}
+          <motion.div
+            className="absolute bottom-3 left-3 right-3 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 z-30"
+            style={{
+              background: 'var(--glass-bg-strong)',
+              backdropFilter: 'blur(20px)',
+              borderColor: 'var(--glass-border)',
+              boxShadow: '0 8px 32px var(--glass-shadow)',
+            }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="flex items-start gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+                <Navigation className="w-4 h-4 text-cyan-400 rotate-45" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-xs font-bold text-white leading-tight">Outdoor Transit Directions</h4>
+                <p className="text-[10px] text-slate-400 mt-0.5">Arrived at North Gate entry zone. Switch to indoor mode for stadium concourse guidance.</p>
+              </div>
+            </div>
+            <motion.button
+              onClick={() => setViewMode('indoor')}
+              className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-bold rounded-lg text-white self-end sm:self-center flex-shrink-0"
+              style={{ background: 'hsl(var(--primary))' }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+            >
+              <span>Enter Gate</span>
+              <Layers className="w-3 h-3" />
+            </motion.button>
+          </motion.div>
+        </div>
+      ) : (
+        <>
+          {/* Background gradient */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'radial-gradient(ellipse 80% 60% at 50% 50%, hsl(188 91% 43% / 0.04) 0%, transparent 70%), hsl(var(--surface))',
+            }}
+          />
       {/* Subtle grid texture */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30" aria-hidden>
         <defs>
@@ -279,13 +394,49 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
         {/* Stadium ambient glow */}
         <ellipse cx="400" cy="400" rx="380" ry="340" fill="url(#stadiumGlow)" />
 
-        {/* Outer stadium bowl */}
-        <ellipse cx="400" cy="400" rx="365" ry="320" fill="none" stroke="hsl(var(--border-strong))" strokeWidth="1.5" />
-        <ellipse cx="400" cy="400" rx="352" ry="308" fill="none" stroke="rgba(6,182,212,0.12)" strokeWidth="6" />
-        <ellipse cx="400" cy="400" rx="352" ry="308" fill="none" stroke="rgba(6,182,212,0.2)" strokeWidth="1.5" />
-
-        {/* Seating tiers */}
-        <ellipse cx="400" cy="400" rx="300" ry="255" fill="none" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="8 6" />
+        {/* Stadium Geometry based on selected stadium */}
+        {stadiumId === 'sofi' ? (
+          <>
+            {/* Asymmetrical modern roof structure */}
+            <path
+              d="M 120 180 C 180 120, 620 100, 680 180 C 740 260, 700 580, 640 660 C 580 740, 220 700, 140 620 C 60 540, 60 240, 120 180 Z"
+              fill="none"
+              stroke="hsl(var(--border-strong))"
+              strokeWidth="2"
+              opacity="0.8"
+            />
+            {/* Inner floating rings */}
+            <ellipse cx="410" cy="390" rx="330" ry="290" fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="8" />
+            <ellipse cx="410" cy="390" rx="310" ry="270" fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" />
+          </>
+        ) : stadiumId === 'azteca' ? (
+          <>
+            {/* Azteca concentric circular rings */}
+            <circle cx="400" cy="400" r="365" fill="none" stroke="hsl(var(--border-strong))" strokeWidth="2.5" />
+            <circle cx="400" cy="400" r="335" fill="none" stroke="hsl(var(--border))" strokeWidth="1.5" />
+            <circle cx="400" cy="400" r="305" fill="none" stroke="rgba(168,85,247,0.1)" strokeWidth="6" />
+            {/* Famous Aztec external spiral access ramps at the four corners */}
+            {[
+              { cx: 130, cy: 130 },
+              { cx: 670, cy: 130 },
+              { cx: 130, cy: 670 },
+              { cx: 670, cy: 670 }
+            ].map((ramp, i) => (
+              <g key={i}>
+                <circle cx={ramp.cx} cy={ramp.cy} r={28} fill="none" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="4 4" />
+                <circle cx={ramp.cx} cy={ramp.cy} r={20} fill="none" stroke="rgba(6,182,212,0.15)" strokeWidth="2" />
+              </g>
+            ))}
+          </>
+        ) : (
+          <>
+            {/* MetLife Stadium (Default) */}
+            <ellipse cx="400" cy="400" rx="365" ry="320" fill="none" stroke="hsl(var(--border-strong))" strokeWidth="1.5" />
+            <ellipse cx="400" cy="400" rx="352" ry="308" fill="none" stroke="rgba(6,182,212,0.12)" strokeWidth="6" />
+            <ellipse cx="400" cy="400" rx="352" ry="308" fill="none" stroke="rgba(6,182,212,0.2)" strokeWidth="1.5" />
+            <ellipse cx="400" cy="400" rx="300" ry="255" fill="none" stroke="hsl(var(--border))" strokeWidth="1" strokeDasharray="8 6" />
+          </>
+        )}
 
         {/* Field */}
         <motion.rect
@@ -443,14 +594,23 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
                 )}
 
                 {/* Zone label */}
-                <text
-                  x={coords[0]} y={coords[1] + 4}
-                  textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.95)"
-                  fontWeight="700" className="pointer-events-none select-none"
-                  style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.04em' }}
-                >
-                  {zone.label.substring(0, 4).toUpperCase()}
-                </text>
+                {['wc', 'food', 'medical', 'entrance', 'exit'].includes(zone.type) ? (() => {
+                  const IconComponent = getZoneIcon(zone.type);
+                  return IconComponent ? (
+                    <g transform={`translate(${coords[0] - 7}, ${coords[1] - 7})`} className="pointer-events-none select-none">
+                      <IconComponent size={14} color="#ffffff" strokeWidth={2.5} />
+                    </g>
+                  ) : null;
+                })() : (
+                  <text
+                    x={coords[0]} y={coords[1] + 3}
+                    textAnchor="middle" fontSize="6.5" fill="rgba(255,255,255,0.95)"
+                    fontWeight="700" className="pointer-events-none select-none"
+                    style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.02em' }}
+                  >
+                    {zone.label.substring(0, 4).toUpperCase()}
+                  </text>
+                )}
               </motion.g>
             );
           })}
@@ -595,6 +755,8 @@ export function StadiumMap({ zones, selectedZoneId, onZoneClick, activeRoute, sh
           )}
         </svg>
       </div>
+        </>
+      )}
     </div>
   );
 }
