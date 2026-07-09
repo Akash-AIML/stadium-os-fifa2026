@@ -283,13 +283,14 @@ export function StadiumMap({
       {viewMode === 'outdoor' ? (
         <div className="w-full h-full relative" style={{ background: '#020408' }}>
           <iframe
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3020.2443653198083!2d-74.07689108459239!3d40.813577979321!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c2f861ad5d0237%3A0x8f2d5bb0091ff6d2!2sMetLife%20Stadium!5e0!3m2!1sen!2sus!4v1680000000000!5m2!1sen!2sus"
+            key={stadiumConfig.id}
+            src={stadiumConfig.embedUrl}
             width="100%"
             height="100%"
             style={{ border: 0, opacity: 0.85, filter: 'invert(90%) hue-rotate(180deg) contrast(110%) brightness(95%)' }}
             allowFullScreen={false}
             loading="lazy"
-            title="Outdoor Transit Map"
+            title={`${stadiumConfig.name} Outdoor Transit Map`}
           />
           {/* Floating Bottom Arrival banner */}
           <motion.div

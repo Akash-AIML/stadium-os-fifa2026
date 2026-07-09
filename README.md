@@ -3,7 +3,7 @@ A smart, configuration-driven, accessible stadium operating system and fan assis
 
 StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-time crowd densities, and receive assistant support in their language — with every recommendation grounded in deterministic stadium geometry so the AI never invents routes or facilities.
 
-Modelled venues: MetLife Stadium (New Jersey), SoFi Stadium (Los Angeles), and Estadio Azteca (Mexico City). Languages supported: **English, Spanish, French, German, Portuguese, Arabic, Japanese, Chinese, Hindi, and Tamil**.
+**3 modelled FIFA 2026 venues**: 🏟 **MetLife Stadium** (East Rutherford, NJ — FIFA: New Jersey Stadium) · 🏟 **SoFi Stadium** (Los Angeles, CA) · 🏟 **Estadio Azteca** (Mexico City, MX). Switch stadiums live from the top navbar — maps, crowd data, outdoor satellite view, and navigation all update instantly. Languages supported: **English, Spanish, French, German, Portuguese, Arabic, Japanese, Chinese, Hindi, and Tamil**.
 
 🌐 Live demo (Frontend): https://stadium-os-fifa2026.vercel.app  
 🌐 Backend API (Hugging Face Spaces): ""  

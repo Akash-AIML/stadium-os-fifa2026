@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Map as MapIcon, MessageSquare, BarChart2,
@@ -45,7 +45,8 @@ function AppContent() {
     if (entered) setShowHero(false);
   }, []);
 
-  // AI ↔ Map Synchronization Effect
+  // AI ↔ Map Synchronization Effect (debounced to prevent 429 flooding)
+  const routeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (state.chat_history.length > 0) {
       const lastMsg = state.chat_history[state.chat_history.length - 1];
@@ -53,22 +54,25 @@ function AppContent() {
         const activeStadium = state.user.stadium_id || 'metlife';
         const config = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
 
-        // 1. If response specifies a routing path, calculate and draw it
+        // 1. If response specifies a routing path, calculate and draw it (debounced 400ms)
         if (lastMsg.route_id) {
-          const routeId = lastMsg.route_id;
-          const zoneIds = Object.keys(config.zones);
-          const found = zoneIds.filter(id => routeId.includes(id));
-          if (found.length >= 2) {
-            const sorted = found.sort((a, b) => routeId.indexOf(a) - routeId.indexOf(b));
-            const fromZone = sorted[0];
-            const toZone = sorted[1];
-            fetchRoute(fromZone, toZone, activeStadium, state.user.accessibility_mode)
-              .then(routeData => {
-                setCurrentRoute(routeData);
-                setCurrentZone(toZone);
-              })
-              .catch(console.error);
-          }
+          if (routeDebounceRef.current) clearTimeout(routeDebounceRef.current);
+          routeDebounceRef.current = setTimeout(() => {
+            const routeId = lastMsg.route_id!;
+            const zoneIds = Object.keys(config.zones);
+            const found = zoneIds.filter(id => routeId.includes(id));
+            if (found.length >= 2) {
+              const sorted = found.sort((a, b) => routeId.indexOf(a) - routeId.indexOf(b));
+              const fromZone = sorted[0];
+              const toZone = sorted[1];
+              fetchRoute(fromZone, toZone, activeStadium, state.user.accessibility_mode)
+                .then(routeData => {
+                  setCurrentRoute(routeData);
+                  setCurrentZone(toZone);
+                })
+                .catch(() => {}); // Silently ignore 429/offline errors
+            }
+          }, 400);
         } else {
           // 2. Highlight/Pulse the zone mentioned by name in response content
           const contentLower = lastMsg.content.toLowerCase();
