@@ -138,9 +138,17 @@ export function StadiumMap({
   const STADIUM_ZONES_METADATA = stadiumConfig.zones;
 
   // ── Wheel zoom ────────────────────────────────────────────────
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    setMapScale(prev => Math.min(Math.max(prev - e.deltaY * 0.001, 0.5), 3));
+  // Must use addEventListener with { passive: false } — React's onWheel prop
+  // registers a passive listener which cannot call e.preventDefault().
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setMapScale(prev => Math.min(Math.max(prev - e.deltaY * 0.001, 0.5), 3));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
   // ── Drag pan ──────────────────────────────────────────────────
@@ -250,7 +258,6 @@ export function StadiumMap({
         background: 'hsl(var(--surface))',
         border: '1px solid hsl(var(--border))',
       }}
-      onWheel={handleWheel}
     >
       {/* ── View Mode Toggle Bar (Floating) ─────────────────── */}
       <div className="absolute top-3 left-3 z-30 flex gap-1 p-0.5 rounded-xl border bg-slate-950/65 backdrop-blur-md" style={{ borderColor: 'var(--glass-border)' }}>
