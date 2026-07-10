@@ -11,7 +11,7 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-# ── Fallback Translation Dictionaries for Offline/Mock mode ─────────────────
+# --- Fallback Translation Dictionaries for Offline/Mock mode ---
 FALLBACK_TRANSLATIONS = {
     "en": {
         "route_found": "Route found: {path}. Estimated time: {time} minutes. {rationale}",

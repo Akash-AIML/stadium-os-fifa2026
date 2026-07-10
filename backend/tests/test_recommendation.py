@@ -29,4 +29,4 @@ def test_recommendation_structure():
         assert hasattr(rec, "zone_id")
         assert hasattr(rec, "priority")
         assert rec.type in ["food", "restroom", "exit", "safety"]
-        assert rec.priority in ["low", "medium", "high", "critical"]
+        assert rec.priority in ["low", "medium", "high"]

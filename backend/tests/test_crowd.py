@@ -19,6 +19,22 @@ def test_set_match_time_bounds():
     crowd_engine.set_match_time(150)
     assert crowd_engine.match_time_minutes == 120
 
+    # Boundary tests: 0, 1, 119, 120, 121
+    crowd_engine.set_match_time(0)
+    assert crowd_engine.match_time_minutes == 0
+
+    crowd_engine.set_match_time(1)
+    assert crowd_engine.match_time_minutes == 1
+
+    crowd_engine.set_match_time(119)
+    assert crowd_engine.match_time_minutes == 119
+
+    crowd_engine.set_match_time(120)
+    assert crowd_engine.match_time_minutes == 120
+
+    crowd_engine.set_match_time(121)
+    assert crowd_engine.match_time_minutes == 120
+
 
 def test_get_all_snapshots():
     snapshots = crowd_engine.get_all_snapshots()
@@ -41,10 +57,22 @@ def test_get_snapshot_invalid_zone():
 
 
 def test_density_to_status():
+    # Regular values
     assert crowd_engine._density_to_status(0.2) == ZoneStatus.CLEAR
     assert crowd_engine._density_to_status(0.4) == ZoneStatus.MODERATE
     assert crowd_engine._density_to_status(0.6) == ZoneStatus.BUSY
     assert crowd_engine._density_to_status(0.85) == ZoneStatus.CONGESTED
+
+    # Exact threshold boundaries (0.3, 0.5, 0.75)
+    # < 0.3 is CLEAR, >= 0.3 is MODERATE
+    assert crowd_engine._density_to_status(0.29) == ZoneStatus.CLEAR
+    assert crowd_engine._density_to_status(0.3) == ZoneStatus.MODERATE
+    # < 0.5 is MODERATE, >= 0.5 is BUSY
+    assert crowd_engine._density_to_status(0.49) == ZoneStatus.MODERATE
+    assert crowd_engine._density_to_status(0.5) == ZoneStatus.BUSY
+    # < 0.75 is BUSY, >= 0.75 is CONGESTED
+    assert crowd_engine._density_to_status(0.74) == ZoneStatus.BUSY
+    assert crowd_engine._density_to_status(0.75) == ZoneStatus.CONGESTED
 
 
 def test_get_alerts():
