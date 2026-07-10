@@ -32,7 +32,7 @@ StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-t
 | Pydantic v2 | Schema validation and input sanitization |
 | Google Generative AI SDK | Gemini 2.5 Flash for explainability and multilingual responses |
 | Token-Bucket Rate Limiter | Custom middleware to protect endpoints from spamming |
-| python-dotenv | Environment management; key-free mode falls back to MockLLM |
+| python-dotenv | Environment management; key-free mode falls back to offline template mode |
 | pytest + pytest-asyncio | 55 backend test cases |
 
 ---
@@ -67,9 +67,9 @@ The pathfinder is a fully custom Dijkstra implementation built on top of each st
 
 **Accessibility routing**: When `accessible=true` is passed, the algorithm applies a `+1000.0` cost penalty to any edge that involves stairs or non-accessible nodes. This forces the solver to route exclusively through elevator lobbies and step-free corridors. The penalty is large enough to never choose stairs unless no alternative exists at all.
 
-**Emergency routing**: A separate branch resolves the nearest medical AED device or safety assembly zone from the current position by running Dijkstra from the fan's current node to every safety-flagged node and returning the minimum.
-
-The endpoint `POST /api/v1/navigate` receives `{from_zone, to_zone, accessible, stadium_id}` and returns the ordered zone list, total estimated minutes, and accessibility flag.
+**Emergency routing**: Resolves the optimal path to medical AED devices and safety assembly zones by executing Dijkstra routing to nodes configured with safety flags inside the stadium profiles.
+ 
+The endpoint `GET /api/v1/navigate` receives query parameters (`from_zone`, `to_zone`, `accessibility_mode`, `stadium_id`) and returns the ordered zone list, total estimated minutes, and accessibility flag.
 
 #### 🤔 Why Dijkstra? — Algorithm Choice Justification
 
@@ -153,8 +153,8 @@ The assistant follows a strict **Rules Before LLM** principle:
 2. `navigation.py` resolves the Dijkstra path and nearest facilities deterministically — before any LLM call is made.
 3. These resolved facts are injected into a structured system prompt in `gemini.py` using delimiter blocks, so Gemini only phrases and explains already-known facts rather than inventing routes.
 4. The system prompt explicitly forbids Gemini from: (a) generating zone names not in the provided config, (b) following user-injected instructions inside the message body (prompt injection defense), and (c) responding in any language other than the one specified.
-5. Gemini returns a structured JSON with: `recommendation`, `reasoning`, `time_saved`, `confidence_score`, `alternative_option`.
-6. If no API key is set, a `MockLLM` class returns template-based responses in the correct language, enabling full offline functionality.
+5. The API returns the raw text from Gemini along with metadata properties (including text, timestamp, response time, confidence, and is_fallback status).
+6. If no API key is set, the `_generate_fallback_response()` method in `gemini.py` returns template-based responses in the correct language, enabling full offline functionality.
 
 Language grounding maps 2-letter codes to full names for the prompt (e.g. `ta` → `Tamil`, `ar` → `Arabic (العربية)`), guaranteeing Gemini replies in the correct natural language.
 
@@ -165,7 +165,7 @@ Language grounding maps 2-letter codes to full names for the prompt (e.g. `ta` �
 
 A `useEffect` in `App.tsx` monitors the global chat history array. When a new assistant message arrives, it runs a lightweight intent parser on the response text:
 - If a **zone name** from the active stadium config is detected, it dispatches `SET_HIGHLIGHT_ZONE` to pulse and center that zone on the SVG map.
-- If a **path description** is detected (e.g. "take elevator to section 112"), it fires `POST /api/v1/navigate` and draws the resolved route overlay automatically.
+- If a **path description** is detected (e.g. "take elevator to section 112"), it fires `GET /api/v1/navigate` and draws the resolved route overlay automatically.
 - If a **Smart Recommendation card** is clicked, it pre-fills the destination, calls the navigate endpoint, and draws the path — all without the fan needing to type.
 
 ---
@@ -232,7 +232,7 @@ A collapsible glassmorphic side panel (toggled via a 🛠 button in the navbar) 
 - Last AI response intent (navigation / crowd query / general)
 - LLM response latency (ms)
 - Confidence score from Gemini's structured output
-- Fallback source (Gemini / MockLLM / template)
+- Fallback source (Gemini / template)
 - Resolved Dijkstra path node sequence
 
 This panel is designed for judges and reviewers to inspect the system's decision-making process transparently without needing to read server logs.
@@ -337,15 +337,15 @@ The routing configuration in the root directory manages API rewrites and delegat
 1. Import the root repository to [Vercel](https://vercel.com).
 2. Vercel automatically detects the `vercel.json` monorepo settings.
 3. Configure the following environment variable in Vercel Settings:
-   - `GEMINI_API_KEY`: Your Google Gemini API Key. (If unset, the application automatically falls back to local MockLLM offline mode).
+   - `GEMINI_API_KEY`: Your Google Gemini API Key. (If unset, the application automatically falls back to local template-based offline response generator mode).
 4. Click **Deploy**. Vercel installs dependencies, builds the Vite production bundle, spins up the FastAPI service, and wires them together under a single domain.
 
 ---
 
-## 4. Assumptions
+## 7. Assumptions
 - Stadium layouts (MetLife, SoFi, Azteca), facilities coordinates, and adjacency lists are illustrative configurations, not official CAD data.
 - Crowd densities are simulated from the match timeline, not live sensor feeds.
-- The Google Gemini key is optional; when unset, MockLLM provides offline functionality.
+- The Google Gemini key is optional; when unset, template-based offline mode provides offline functionality.
 
 ---
 
@@ -385,7 +385,7 @@ The routing configuration in the root directory manages API rewrites and delegat
 *   **TTS**: Every AI reply can be spoken aloud in the user's language. Corrected Spanish dictionary translation typos and added `"hi"` and `"ta"` to validators.
 
 ### 🧪 Testing & Code Coverage
-*   **Backend** — 55 test cases with **88% statement coverage** (Dijkstra routing, accessibility mode, rate limiting, and Gemini fallback generation):
+*   **Backend** — 55 test cases with **87% statement coverage** (tracked locally via `pytest --cov` utilizing `.coveragerc` configurations):
   ```bash
   cd backend && pytest tests/ -v
   ```
@@ -396,7 +396,7 @@ The routing configuration in the root directory manages API rewrites and delegat
 
 ---
 
-## 6. Architecture & File Tree
+## 9. Architecture & File Tree
 
 ```
                         ┌───────────────────────────────┐
@@ -411,7 +411,7 @@ The routing configuration in the root directory manages API rewrites and delegat
                         └─────────────┬─────────────────┘
                                       │ WS /api/v1/crowd/ws/{id}
                                       │ POST /api/v1/chat
-                                      │ POST /api/v1/navigate
+                                      │ GET /api/v1/navigate
                                       ▼
                         ┌───────────────────────────────┐
                         │       Services Engine         │
@@ -423,7 +423,7 @@ The routing configuration in the root directory manages API rewrites and delegat
                                       ▼
                         ┌───────────────────────────────┐
                         │      LLM Phrasing Layer       │
-                        │   ├─ MockLLM (Offline)        │
+                        │   ├─ Local Template (Offline) │
                         │   └─ Gemini 2.5 Flash         │
                         └───────────────────────────────┘
 ```
@@ -441,12 +441,14 @@ stadium-os-fifa2026/
 │   │   │   ├── navigation.py    # Weighted Dijkstra + accessibility solver
 │   │   │   ├── crowd.py         # Match-phase crowd simulation engine
 │   │   │   ├── recommendation.py# Smart facility recommendation engine
-│   │   │   └── gemini.py        # Gemini API client + MockLLM fallback
+│   │   │   └── gemini.py        # Gemini API client + local template fallback
 │   │   ├── routes/
 │   │   │   ├── chat.py          # POST /chat — AI assistant endpoint
 │   │   │   ├── crowd.py         # WS /crowd/ws — real-time crowd stream
-│   │   │   └── navigate.py      # POST /navigate — Dijkstra path endpoint
+│   │   │   └── navigate.py      # GET /navigate — Dijkstra path endpoint
 │   │   └── utils/
+│   │       ├── exceptions.py    # Custom application exception classes
+│   │       ├── intent.py        # Keyword intent parser (Dijkstra, crowd, recs)
 │   │       ├── rate_limit.py    # Token-bucket rate limiter middleware
 │   │       └── validators.py    # Regex input sanitization helpers
 │   ├── tests/                   # 55 pytest test cases
@@ -486,5 +488,5 @@ stadium-os-fifa2026/
 
 ---
 
-## 👥 License
+## 10. License
 MIT License — Built for the FIFA 2026 Stadium Challenge.
