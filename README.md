@@ -5,8 +5,7 @@ StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-t
 
 **3 modelled FIFA 2026 venues**: 🏟 **MetLife Stadium** (East Rutherford, NJ — FIFA: New Jersey Stadium) · 🏟 **SoFi Stadium** (Los Angeles, CA) · 🏟 **Estadio Azteca** (Mexico City, MX). Switch stadiums live from the top navbar — maps, crowd data, outdoor satellite view, and navigation all update instantly. Languages supported: **English, Spanish, French, German, Portuguese, Arabic, Japanese, Chinese, Hindi, and Tamil**.
 
-🌐 Live demo (Frontend): https://stadium-os-fifa2026.vercel.app  
-🌐 Backend API (Hugging Face Spaces): ""  
+🌐 Live Deployment (Full-stack Vercel): https://stadium-os-fifa2026.vercel.app  
 🐙 GitHub Repository: https://github.com/Akash-AIML/stadium-os-fifa2026
 
 ---
@@ -31,10 +30,9 @@ StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-t
 | FastAPI (Python 3.11+) | Fully async REST + WebSocket API server |
 | Custom Dijkstra Solver | Deterministic weighted graph pathfinding with accessibility penalties |
 | Pydantic v2 | Schema validation and input sanitization |
-| Google Generative AI SDK | Gemini 1.5 Flash for explainability and multilingual responses |
+| Google Generative AI SDK | Gemini 2.5 Flash for explainability and multilingual responses |
 | Token-Bucket Rate Limiter | Custom middleware to protect endpoints from spamming |
 | python-dotenv | Environment management; key-free mode falls back to MockLLM |
-| Docker (Multi-stage) | Production container for Hugging Face Spaces deployment |
 | pytest + pytest-asyncio | 39 backend test cases |
 
 ---
@@ -221,7 +219,7 @@ Preset buttons — **Kickoff**, **Halftime**, **Fulltime** — jump the slider t
 ### 11. Token-Bucket Rate Limiter
 **Files**: `backend/app/utils/rate_limit.py`
 
-A custom FastAPI middleware implements a **token-bucket** algorithm. Each client IP address gets a bucket of 20 tokens that refills at 1 token per second. Every API request deducts one token. When a bucket empties, subsequent requests receive a `429 Too Many Requests` response, protecting the backend from flooding and shielding the Gemini API quota from accidental or malicious exhaustion.
+A custom FastAPI middleware implements a **token-bucket** algorithm. Each client IP address gets a bucket of 60 tokens that refills at 1 token per second. Every API request deducts one token. When a bucket empties, subsequent requests receive a `429 Too Many Requests` response, protecting the backend from flooding and shielding the Gemini API quota from accidental or malicious exhaustion.
 
 ---
 
@@ -300,20 +298,47 @@ Open `http://localhost:5173` to interact with the application.
 
 ## 🚀 Deployment
 
-### Backend — Hugging Face Spaces (Docker Space)
-1. Create a new Space on [Hugging Face](https://huggingface.co/new-space).
-2. Choose **Docker** as the SDK template.
-3. Set your environment variables in Space Settings:
-   - `GEMINI_API_KEY` (Your Google Gemini key. If unset, it falls back to MockLLM offline mode).
-4. Push the contents of the `backend/` directory to the Space repository. Hugging Face will build the multi-stage container from the included `Dockerfile` and bind to port `7860` automatically.
+The entire application is deployed as a single, unified deployment on **Vercel** utilizing a monorepo structure. Both the FastAPI Python backend and Vite React frontend run under the same project domain.
 
-### Frontend — Vercel
-1. Import the `frontend/` directory to [Vercel](https://vercel.com).
-2. Configure build settings:
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-3. Set the `VITE_API_BASE_URL` environment variable to your Hugging Face Space backend URL.
-4. Deploy the project.
+### Deployment Configuration (`vercel.json`)
+The routing configuration in the root directory manages API rewrites and delegates Python runtime execution:
+
+```json
+{
+  "services": {
+    "frontend": {
+      "root": "frontend",
+      "framework": "vite"
+    },
+    "backend": {
+      "root": "backend"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api(/.*)?",
+      "destination": {
+        "type": "service",
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "type": "service",
+        "service": "frontend"
+      }
+    }
+  ]
+}
+```
+
+### Steps to Deploy on Vercel
+1. Import the root repository to [Vercel](https://vercel.com).
+2. Vercel automatically detects the `vercel.json` monorepo settings.
+3. Configure the following environment variable in Vercel Settings:
+   - `GEMINI_API_KEY`: Your Google Gemini API Key. (If unset, the application automatically falls back to local MockLLM offline mode).
+4. Click **Deploy**. Vercel installs dependencies, builds the Vite production bundle, spins up the FastAPI service, and wires them together under a single domain.
 
 ---
 
@@ -359,28 +384,33 @@ Open `http://localhost:5173` to interact with the application.
 ## 6. Architecture & File Tree
 
 ```
-                       ┌─────────────────────────────┐
-  Vercel Frontend ────▶│  FastAPI Backend (HF Space) │
-  (React 19 + Vite)    │  • CORS + Security headers  │
-                       │  • Rate Limiting Middleware  │
-                       └──────────────┬──────────────┘
+                        ┌───────────────────────────────┐
+                        │      Unified Vercel Host      │
+                        │                               │
+                        │   Vite Frontend (React 19)    │
+                        │             │                 │
+                        │             ▼ (Rewrites /api) │
+                        │   FastAPI Python Backend      │
+                        │      • Rate Limiting          │
+                        │      • Security Headers       │
+                        └─────────────┬─────────────────┘
                                       │ WS /api/v1/crowd/ws/{id}
                                       │ POST /api/v1/chat
                                       │ POST /api/v1/navigate
                                       ▼
-                       ┌─────────────────────────────┐
-                       │  Services Engine            │
-                       │  ├─ stadiums.py (Configs)   │
-                       │  ├─ navigation.py (Dijkstra)│
-                       │  └─ crowd.py (Simulation)   │
-                       └──────────────┬──────────────┘
+                        ┌───────────────────────────────┐
+                        │       Services Engine         │
+                        │   ├─ stadiums.py (Configs)    │
+                        │   ├─ navigation.py (Dijkstra) │
+                        │   └─ crowd.py (Simulation)    │
+                        └─────────────┬─────────────────┘
                                       │ Resolved Path & Facts
                                       ▼
-                       ┌─────────────────────────────┐
-                       │  LLM Phrasing Layer         │
-                       │  ├─ MockLLM (Offline)       │
-                       │  └─ Gemini 1.5 Flash        │
-                       └─────────────────────────────┘
+                        ┌───────────────────────────────┐
+                        │      LLM Phrasing Layer       │
+                        │   ├─ MockLLM (Offline)        │
+                        │   └─ Gemini 2.5 Flash         │
+                        └───────────────────────────────┘
 ```
 
 ### Directory Structure
@@ -405,7 +435,6 @@ stadium-os-fifa2026/
 │   │       ├── rate_limit.py    # Token-bucket rate limiter middleware
 │   │       └── validators.py    # Regex input sanitization helpers
 │   ├── tests/                   # 39 pytest test cases
-│   ├── Dockerfile               # Multi-stage build for Hugging Face Spaces
 │   ├── .env.example             # API key template
 │   └── requirements.txt
 ├── frontend/
@@ -437,7 +466,7 @@ stadium-os-fifa2026/
 │   │       └── api.ts               # Fetch/Axios API client
 │   ├── tests/                       # 6 Vitest component tests
 │   └── package.json
-└── README.md
+└── vercel.json                  # Unified Vercel monorepo configuration
 ```
 
 ---
