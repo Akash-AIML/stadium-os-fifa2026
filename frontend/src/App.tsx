@@ -125,28 +125,28 @@ function AppContent() {
   };
 
   // Map raw snapshots into CrowdZone format
+  // Seed from STADIUMS_CONFIG so the map is always interactive even before WebSocket data arrives.
+  // Live crowd data (density/status) overlays on top when the WebSocket connects.
   const activeStadium = state.user.stadium_id || 'metlife';
   const currentStadium = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
-  const zones = state.crowd_data.map(c => {
-    const meta = currentStadium.zones[c.zone_id] || {
-      label: c.zone_id.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-      type: 'generic',
-      location: [0, 0] as [number, number],
-    };
-    
-    // Simple mock historical data using current density
-    const history = [c.density * 0.9, c.density * 0.95, c.density * 1.05, c.density];
-    const waitHistory = [c.queue_time - 2, c.queue_time - 1, c.queue_time + 1, c.queue_time];
-    const trend = c.density > 0.75 ? 'up' : c.density < 0.25 ? 'down' : 'stable';
+
+  const zones = Object.entries(currentStadium.zones).map(([zoneId, meta]) => {
+    const live = state.crowd_data.find(c => c.zone_id === zoneId);
+    const density    = live?.density    ?? 0.3;
+    const queueTime  = live?.queue_time ?? 5;
+    const status     = (live?.status ?? 'low') as import('./shared/types').ZoneStatus;
+    const history    = [density * 0.9, density * 0.95, density * 1.05, density];
+    const waitHistory = [queueTime - 2, queueTime - 1, queueTime + 1, queueTime];
+    const trend      = density > 0.75 ? 'up' : density < 0.25 ? 'down' : 'stable';
 
     return {
-      id: c.zone_id,
+      id: zoneId,
       label: meta.label,
       type: meta.type,
       location: meta.location,
-      status: c.status,
-      density: c.density,
-      queueTime: c.queue_time,
+      status,
+      density,
+      queueTime,
       trend: trend as 'up' | 'down' | 'stable',
       history,
       waitHistory,
