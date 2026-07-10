@@ -1,4 +1,3 @@
-import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.services.crowd import crowd_engine
@@ -36,3 +35,76 @@ def test_websocket_stadium_stream():
         
         # 3. Verify the backend state was successfully updated asynchronously
         assert crowd_engine.match_time_minutes == 15
+
+
+def test_rest_crowd_endpoints():
+    # Test GET /api/v1/crowd/
+    response = client.get("/api/v1/crowd/")
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert len(response.json()["data"]) > 0
+
+    # Test GET /api/v1/crowd/alerts
+    response = client.get("/api/v1/crowd/alerts")
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    # Test GET /api/v1/crowd/recommendations
+    response = client.get("/api/v1/crowd/recommendations?zone_id=gate_north")
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
+def test_rest_navigate_endpoints():
+    # Valid route
+    response = client.get("/api/v1/navigate/?from_zone=gate_north&to_zone=food_court_a")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["data"]["path"] == ["gate_north", "food_court_a"]
+
+    # Invalid zone ID to trigger ValueError catch block
+    response = client.get("/api/v1/navigate/?from_zone=invalid_zone&to_zone=food_court_a")
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert "invalid" in response.json()["error"].lower()
+
+
+def test_chat_keyword_routing_and_validation():
+    # Keyword: wc / restroom
+    response = client.post(
+        "/api/v1/chat/",
+        json={
+            "message": "Where is the nearest restroom or wc?",
+            "language": "en",
+            "current_zone_id": "gate_north",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    # Keyword: food
+    response = client.post(
+        "/api/v1/chat/",
+        json={
+            "message": "Where can I get some food?",
+            "language": "en",
+            "current_zone_id": "gate_north",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+    # Validation failure: Invalid zone ID format
+    response = client.post(
+        "/api/v1/chat/",
+        json={
+            "message": "Hello",
+            "language": "en",
+            "current_zone_id": "invalid@zone",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert "invalid" in response.json()["error"].lower()
+

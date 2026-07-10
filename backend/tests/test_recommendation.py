@@ -1,7 +1,5 @@
-import pytest
 from app.services.recommendation import recommendation_engine
 from app.services.crowd import crowd_engine
-from app.models import ZoneStatus
 
 
 def test_recommendation_engine_initialization():

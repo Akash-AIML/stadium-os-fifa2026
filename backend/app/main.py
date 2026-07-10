@@ -2,7 +2,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.models import ApiResponse, ChatRequest, ChatResponse, CrowdSnapshot, Alert, Recommendation, Route
 
 
 from app.routes import crowd, navigate, chat

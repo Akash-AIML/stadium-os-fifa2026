@@ -1,5 +1,4 @@
 from app.models import Recommendation, CrowdSnapshot, ZoneStatus
-from app.services.crowd import STADIUM_ZONES
 
 
 class RecommendationEngine:

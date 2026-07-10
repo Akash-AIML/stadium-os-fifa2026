@@ -1,5 +1,4 @@
 import time
-import pytest
 from app.utils.rate_limit import RateLimiter
 
 def test_rate_limiter_under_limit():

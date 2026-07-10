@@ -2,7 +2,6 @@ import time
 from datetime import datetime
 from app.config import settings
 from app.models import IntentType, CrowdSnapshot, Alert, Route
-from app.utils.exceptions import AiServiceError
 from app.models import ZoneStatus
 
 try:
@@ -122,7 +121,7 @@ class GeminiClient:
                 is_fallback = True
                 confidence = 0.6
 
-        except Exception as e:
+        except Exception:
             text = self._generate_fallback_response(intent, context_data, user_message, language, alerts, route, stadium_id, accessibility_mode)
             is_fallback = True
             confidence = 0.5
@@ -257,8 +256,8 @@ Please provide a beautiful and structured response in {full_lang} based on the i
             res = f"**{a11y_prefix}Recommendation:** Take {path_str}.\n\n"
             res += f"**Reason:** {route.rationale}\n\n"
             res += f"**Estimated Time Saved:** {route.estimated_time} minutes.\n\n"
-            res += f"**Confidence Score:** 90%\n\n"
-            res += f"**Alternative Option:** Follow the exit signs to the nearest gate."
+            res += "**Confidence Score:** 90%\n\n"
+            res += "**Alternative Option:** Follow the exit signs to the nearest gate."
             return res
 
         if intent == IntentType.CROWD_STATUS:

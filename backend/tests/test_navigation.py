@@ -1,7 +1,6 @@
 import pytest
 from app.services.navigation import navigation_engine
 from app.services.crowd import crowd_engine
-from app.models import ZoneStatus
 
 
 def test_navigation_initialization():

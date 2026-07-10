@@ -3,6 +3,8 @@ from app.models import ApiResponse, Route
 from app.services.navigation import navigation_engine
 from app.services.crowd import crowd_engine
 
+from app.utils.exceptions import NavigationError
+
 router = APIRouter()
 
 
@@ -19,5 +21,5 @@ async def get_route(
         if route is None:
             return ApiResponse(success=False, data=None, error="No viable route found")
         return ApiResponse(success=True, data=route)
-    except ValueError as e:
+    except (ValueError, NavigationError) as e:
         return ApiResponse(success=False, data=None, error=str(e))

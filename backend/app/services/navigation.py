@@ -1,6 +1,6 @@
 import heapq
 from app.models import Route, CrowdSnapshot, ZoneStatus
-from app.services.crowd import ZONE_GRAPH, STADIUM_ZONES
+from app.services.crowd import STADIUM_ZONES
 from app.utils.exceptions import NavigationError
 
 
@@ -12,7 +12,6 @@ class NavigationEngine:
     """
 
     def __init__(self):
-        from app.services.crowd import STADIUM_ZONES
         self.zone_locations = {z["id"]: tuple(z["location"]) for z in STADIUM_ZONES}
 
     def _calculate_distance(self, zone1_id: str, zone2_id: str, zone_locations: dict) -> float:

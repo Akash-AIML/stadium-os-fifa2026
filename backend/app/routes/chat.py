@@ -2,11 +2,11 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends
 
-from app.models import ChatRequest, ChatResponse, ChatMessage, ApiResponse, IntentType
+from app.models import ChatRequest, ChatResponse, ChatMessage, ApiResponse
 from app.utils.validators import sanitize_message, validate_seat_number, validate_zone_id, validate_language
 from app.utils.intent import detect_intent
 from app.utils.rate_limit import rate_limit_dependency
-from app.services.crowd import crowd_engine, STADIUM_ZONES
+from app.services.crowd import crowd_engine
 from app.services.navigation import navigation_engine
 from app.services.gemini import gemini_client
 
@@ -147,5 +147,5 @@ async def chat_endpoint(request: ChatRequest):
         return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
