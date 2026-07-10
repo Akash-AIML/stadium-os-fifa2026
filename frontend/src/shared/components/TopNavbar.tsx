@@ -36,9 +36,10 @@ const ZONE_TYPE_ICONS: Record<string, typeof MapPin> = {
 interface TopNavbarProps {
   showChat: boolean;
   onToggleChat: () => void;
+  onNavigate: (zoneId: string) => void;
 }
 
-export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
+export function TopNavbar({ showChat, onToggleChat, onNavigate }: TopNavbarProps) {
   const { state, setUser, toggleDevMode, setCurrentZone } = useApp();
   const { setMatchTime } = useSimulation();
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -97,14 +98,17 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
   const filteredActions = QUICK_ACTIONS.filter(item =>
     item.label.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const filteredZones = Object.entries(STADIUM_ZONES_METADATA)
-    .map(([id, meta]) => ({ id, label: meta.label, type: meta.type }))
-    .filter(z => z.label.toLowerCase().includes(searchQuery.toLowerCase()))
-    .slice(0, 9);
 
   // ── Match phase helpers ─────────────────────────────────────
   const activeStadium = state.user.stadium_id || 'metlife';
   const currentStadium = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
+
+  // Build activeStadiumZones from the active stadium config (not the hardcoded MetLife-only file)
+  const activeStadiumZones = Object.entries(currentStadium.zones)
+    .map(([id, meta]) => ({ id, label: meta.label, type: meta.type }))
+    .filter(z => z.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    .slice(0, 9);
+
   const simTime = state.simulation_time;
   const phases = [
     { label: 'Pre-Match', Icon: Zap,   time: 15, active: simTime <= 30,           color: 'emerald' },
@@ -546,17 +550,17 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             if (action === 'food') {
-                              const z = Object.keys(STADIUM_ZONES_METADATA).find(id => id.includes('food'));
-                              if (z) setCurrentZone(z);
+                              const z = Object.keys(currentStadium.zones).find(id => id.includes('food'));
+                              if (z) onNavigate(z);
                             } else if (action === 'exit') {
-                              const z = Object.keys(STADIUM_ZONES_METADATA).find(id => id.includes('exit') || id.includes('gate'));
-                              if (z) setCurrentZone(z);
+                              const z = Object.keys(currentStadium.zones).find(id => id.includes('exit') || id.includes('gate'));
+                              if (z) onNavigate(z);
                             } else if (action === 'restroom') {
-                              const z = Object.keys(STADIUM_ZONES_METADATA).find(id => id.includes('wc'));
-                              if (z) setCurrentZone(z);
+                              const z = Object.keys(currentStadium.zones).find(id => id.includes('wc'));
+                              if (z) onNavigate(z);
                             } else if (action === 'nav_seat') {
-                              const z = Object.keys(STADIUM_ZONES_METADATA).find(id => id.includes('section'));
-                              if (z) setCurrentZone(z);
+                              const z = Object.keys(currentStadium.zones).find(id => id.includes('section'));
+                              if (z) onNavigate(z);
                             }
                             setShowCommand(false);
                           }}
@@ -569,13 +573,13 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
                   </div>
                 )}
 
-                {filteredZones.length > 0 && (
+                {activeStadiumZones.length > 0 && (
                   <div>
                     <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-fg))' }}>
                       Stadium Zones
                     </p>
                     <div className="grid grid-cols-3 gap-1.5">
-                      {filteredZones.map(zone => {
+                      {activeStadiumZones.map(zone => {
                         const ZoneIcon = ZONE_TYPE_ICONS[zone.type] || MapPin;
                         return (
                           <motion.button
@@ -587,7 +591,7 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
                             }}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => { setCurrentZone(zone.id); setShowCommand(false); }}
+                            onClick={() => { onNavigate(zone.id); setShowCommand(false); }}
                           >
                             <ZoneIcon className="w-3.5 h-3.5" style={{ color: 'hsl(var(--primary))' }} />
                             <span className="text-xs font-semibold" style={{ color: 'hsl(var(--fg))' }}>{zone.label}</span>
@@ -599,7 +603,7 @@ export function TopNavbar({ showChat, onToggleChat }: TopNavbarProps) {
                   </div>
                 )}
 
-                {filteredActions.length === 0 && filteredZones.length === 0 && (
+                {filteredActions.length === 0 && activeStadiumZones.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-12 gap-3">
                     <div
                       className="w-12 h-12 rounded-full flex items-center justify-center"

@@ -75,6 +75,7 @@ function AppContent() {
           }, 400);
         } else {
           // 2. Highlight/Pulse the zone mentioned by name in response content
+          //    AND draw a route line from current zone → mentioned zone if possible
           const contentLower = lastMsg.content.toLowerCase();
           const mentionedZone = Object.keys(config.zones).find(id => {
             const label = config.zones[id].label.toLowerCase();
@@ -82,13 +83,26 @@ function AppContent() {
           });
           if (mentionedZone) {
             setCurrentZone(mentionedZone);
+            // Draw route from current position to the mentioned zone
+            if (state.current_zone_id && state.current_zone_id !== mentionedZone) {
+              if (routeDebounceRef.current) clearTimeout(routeDebounceRef.current);
+              routeDebounceRef.current = setTimeout(() => {
+                fetchRoute(state.current_zone_id!, mentionedZone, activeStadium, state.user.accessibility_mode)
+                  .then(routeData => setCurrentRoute(routeData))
+                  .catch(() => {});
+              }, 400);
+            }
           }
         }
       }
     }
   }, [state.chat_history, state.user.stadium_id, state.user.accessibility_mode, setCurrentZone]);
 
-  // Client-side route cache — avoids re-fetching the same path (no LLM cost but saves backend calls)
+  // Clear route cache whenever accessibility mode changes so stale routes aren't served
+  useEffect(() => {
+    routeCacheRef.current.clear();
+  }, [state.user.accessibility_mode]);
+
   const routeCacheRef = useRef<Map<string, any>>(new Map());
 
   const handleZoneClick = async (zoneId: string) => {
@@ -281,7 +295,7 @@ function AppContent() {
           className="min-h-screen flex flex-col"
           style={{ color: 'hsl(var(--fg))' }}
         >
-          <TopNavbar showChat={showChat} onToggleChat={() => setShowChat(s => !s)} />
+          <TopNavbar showChat={showChat} onToggleChat={() => setShowChat(s => !s)} onNavigate={handleZoneClick} />
 
           {/* ── Mobile tab bar ───────────────────────────────── */}
           <nav
