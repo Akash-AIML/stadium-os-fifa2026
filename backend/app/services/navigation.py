@@ -5,11 +5,20 @@ from app.utils.exceptions import NavigationError
 
 
 class NavigationEngine:
+    """
+    Core pathfinding and routing service using Dijkstra's algorithm.
+    Calculates step-free paths when Accessibility Mode is active by penalizing stairways
+    and non-accessible concourses.
+    """
+
     def __init__(self):
         from app.services.crowd import STADIUM_ZONES
         self.zone_locations = {z["id"]: tuple(z["location"]) for z in STADIUM_ZONES}
 
     def _calculate_distance(self, zone1_id: str, zone2_id: str, zone_locations: dict) -> float:
+        """
+        Computes Euclidean distance between coordinates of two stadium zones.
+        """
         loc1 = zone_locations.get(zone1_id, (0, 0))
         loc2 = zone_locations.get(zone2_id, (0, 0))
         return ((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2) ** 0.5
@@ -22,6 +31,10 @@ class NavigationEngine:
         stadium_id: str = "metlife",
         accessibility_mode: bool = False
     ) -> Route | None:
+        """
+        Calculates the optimal weighted path between two zones, incorporating
+        corridor distances, active crowd congestion multipliers, and step-free constraints.
+        """
         from app.services.stadiums import STADIUMS_CONFIG
         if not stadium_id or stadium_id not in STADIUMS_CONFIG:
             stadium_id = "metlife"

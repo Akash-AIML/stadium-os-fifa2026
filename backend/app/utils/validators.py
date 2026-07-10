@@ -23,7 +23,14 @@ def sanitize_message(message: str) -> str:
         if re.search(pattern, stripped, re.IGNORECASE):
             raise ValueError("Message contains forbidden content")
 
-    return re.sub(r"<[^>]*>", "", stripped)
+    clean = stripped
+    while True:
+        next_clean = re.sub(r"</?[a-zA-Z0-9]+[^>]*>", "", clean)
+        if next_clean == clean:
+            break
+        clean = next_clean
+
+    return clean
 
 
 def validate_seat_number(seat: str) -> str:

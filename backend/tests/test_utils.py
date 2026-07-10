@@ -29,6 +29,17 @@ def test_sanitize_message_strips_html():
     sanitized = sanitize_message(msg)
     assert sanitized == "Hello world"
 
+    # Test nested HTML tags (anti-bypass validation)
+    nested_msg = "<<div>div>Hello</div>"
+    assert sanitize_message(nested_msg) == "Hello"
+
+    nested_msg_2 = "<div>Hello <span style='color: red'><p>nested</p></span> world</div>"
+    assert sanitize_message(nested_msg_2) == "Hello nested world"
+
+    # Test that forbidden pattern triggers ValueError
+    with pytest.raises(ValueError):
+        sanitize_message("<script>alert(1)</script>")
+
 
 def test_validate_seat_number_valid():
     assert validate_seat_number("A-101") == "A-101"

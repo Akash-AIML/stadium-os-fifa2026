@@ -44,20 +44,34 @@ ZONE_GRAPH = {
 
 
 class CrowdEngine:
+    """
+    Simulates real-time crowd dynamics, congestion states, and queue wait times
+    across match clock phases (pre-match, halftime, full-time).
+    """
+
     def __init__(self):
         self.base_time = datetime.now()
         self.match_time_minutes = 0
 
     def get_stadium_config(self, stadium_id: str = "metlife") -> dict:
+        """
+        Resolves the configuration profile (zones, capacities, edges) of the requested venue.
+        """
         from app.services.stadiums import STADIUMS_CONFIG
         if not stadium_id or stadium_id not in STADIUMS_CONFIG:
             stadium_id = "metlife"
         return STADIUMS_CONFIG[stadium_id]
 
     def set_match_time(self, minutes: int) -> None:
+        """
+        Updates the simulation minute (clamped between 0 and 120 minutes).
+        """
         self.match_time_minutes = max(0, min(120, minutes))
 
     def get_all_zones(self, stadium_id: str = "metlife") -> list[Zone]:
+        """
+        Returns a list of all zones with their physical metadata and live status snapshots.
+        """
         config = self.get_stadium_config(stadium_id)
         snapshots = self.get_all_snapshots(stadium_id)
         snapshot_map = {s.zone_id: s for s in snapshots}

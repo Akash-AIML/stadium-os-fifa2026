@@ -9,8 +9,7 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
     cors_origins: list[str] = [
         "http://localhost:5173",
-        "https://*.vercel.app",
-        "https://*.vercel.com",
+        "https://stadium-os-fifa2026.vercel.app",
     ]
     dev_mode: bool = False
 

@@ -13,7 +13,6 @@ import { Dashboard } from './features/crowd/Dashboard';
 import { RecommendationsList } from './features/crowd/RecommendationCard';
 import { OnboardingModal } from './shared/components/OnboardingModal';
 import { DevModePanel } from './shared/components/DevModePanel';
-import { useCrowdData } from './shared/hooks/useCrowdData';
 import { useSimulation } from './shared/hooks/useSimulation';
 import { STADIUM_ZONES_METADATA } from './shared/utils/zones';
 import { STADIUMS_CONFIG } from './shared/utils/stadiums';
@@ -27,7 +26,6 @@ import { ToastSystem } from './shared/components/ToastSystem';
 
 function AppContent() {
   const { state, setCurrentZone, toggleDevMode, setSimulationTime } = useApp();
-  const { } = useCrowdData();
   const { setMatchTime } = useSimulation();
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHero, setShowHero] = useState(true);
