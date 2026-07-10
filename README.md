@@ -33,7 +33,7 @@ StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-t
 | Google Generative AI SDK | Gemini 2.5 Flash for explainability and multilingual responses |
 | Token-Bucket Rate Limiter | Custom middleware to protect endpoints from spamming |
 | python-dotenv | Environment management; key-free mode falls back to offline template mode |
-| pytest + pytest-asyncio | 55 backend test cases |
+| pytest + pytest-asyncio | 54 backend test cases |
 
 ---
 
@@ -135,7 +135,7 @@ The map is a hand-authored SVG rendered inside a React component. Each stadium h
 The backend exposes a **bidirectional WebSocket** at `ws://.../api/v1/crowd/ws/{stadium_id}`. On connection, the server begins streaming a JSON payload every 3 seconds containing:
 - `crowd`: per-zone density percentages, wait times, congestion labels
 - `alerts`: active crowd surge warnings
-- `recommendations`: AI-generated action cards (e.g. "Use Gate C — 40% less crowded")
+- `recommendations`: Rule-based action cards (e.g. "Use Gate C — 40% less crowded")
 - `match_time`: current simulation minute
 
 On the frontend, **a single WebSocket connection** is maintained at the root `AppProvider` level in `AppContext.tsx` using a module-level singleton cache (`globalSocket`). This prevents React 18 Strict Mode double-renders from creating duplicate TCP connections and producing "WebSocket closed before connection established" console warnings. The connection is reused for re-renders and only replaced when the stadium changes.
@@ -203,12 +203,11 @@ The hook exposes a `t(key)` function. Components call `t('find_route')` instead 
 ### 10. Match Simulation Timeline
 **Files**: `backend/app/services/crowd.py`, `frontend/src/shared/components/TimelineSlider.tsx`
 
-The simulation models a 90-minute football match with distinct crowd behaviour phases:
-- **0–15 min (Pre-match)**: Gates and entrance concourses are at peak density as fans arrive.
-- **15–45 min (First Half)**: Interior zones normalise; concessions see moderate traffic.
-- **45–50 min (Halftime)**: Restrooms and food stands surge to maximum density.
-- **50–90 min (Second Half)**: Densities drop as fans return to seats.
-- **90+ min (Post-match)**: Exit gates and transit zones spike to maximum.
+The simulation models crowd behavior across different match clock thresholds:
+- **Arrival Phase (< 30 min)**: Entrances peak in density as fans stream into the stadium.
+- **First Half & Second Half (30 to 90 min)**: Seating zones spike to peak capacity.
+- **Halftime (45 to 60 min)**: Concessions (food) and restrooms (wc) surge to maximum density.
+- **Egress Phase (> 90 min)**: Exit gates spike to peak density while seating and entrances clear out.
 
 `crowd.py` applies time-based multipliers to each zone's base capacity to calculate current density. The `TimelineSlider.tsx` component sends the selected minute to the backend via the WebSocket stream, which recalculates and pushes back updated density data in real time.
 
@@ -216,10 +215,10 @@ Preset buttons — **Kickoff**, **Halftime**, **Fulltime** — jump the slider t
 
 ---
 
-### 11. Token-Bucket Rate Limiter
+### 11. Sliding-Window Rate Limiter
 **Files**: `backend/app/utils/rate_limit.py`
 
-A custom FastAPI middleware implements a **token-bucket** algorithm. Each client IP address gets a bucket of 60 tokens that refills at 1 token per second. Every API request deducts one token. When a bucket empties, subsequent requests receive a `429 Too Many Requests` response, protecting the backend from flooding and shielding the Gemini API quota from accidental or malicious exhaustion.
+A custom FastAPI middleware implements a **sliding-window rate limiter** algorithm using a rolling history of request timestamps per client IP. On each incoming request, timestamps older than the sliding window interval (60 seconds) are evicted, and the remaining request count is validated against the defined limits. If the threshold is exceeded, the request receives a `429 Too Many Requests` response, preventing API flood attacks.
 
 ---
 
@@ -385,7 +384,7 @@ The routing configuration in the root directory manages API rewrites and delegat
 *   **TTS**: Every AI reply can be spoken aloud in the user's language. Corrected Spanish dictionary translation typos and added `"hi"` and `"ta"` to validators.
 
 ### 🧪 Testing & Code Coverage
-*   **Backend** — 55 test cases with **87% statement coverage** (tracked locally via `pytest --cov` utilizing `.coveragerc` configurations):
+*   **Backend** — 54 test cases with **87% statement coverage** (tracked locally via `pytest --cov` utilizing `.coveragerc` configurations):
   ```bash
   cd backend && pytest tests/ -v
   ```
@@ -451,7 +450,15 @@ stadium-os-fifa2026/
 │   │       ├── intent.py        # Keyword intent parser (Dijkstra, crowd, recs)
 │   │       ├── rate_limit.py    # Token-bucket rate limiter middleware
 │   │       └── validators.py    # Regex input sanitization helpers
-│   ├── tests/                   # 55 pytest test cases
+│   ├── tests/                   # 54 pytest unit/integration test functions
+│   │   ├── conftest.py          # Autouse clock reset & Gemini client mocks
+│   │   ├── test_chat.py         # Parameterized chat intent and validation tests
+│   │   ├── test_crowd.py        # Crowd clock simulation and density tests
+│   │   ├── test_gemini.py       # Translation & template fallback tests
+│   │   ├── test_integration.py  # REST and WebSocket integration stream tests
+│   │   ├── test_navigation.py   # Dijkstra accessibility routing tests
+│   │   ├── test_rate_limit.py   # Sliding-window 429 rate limit tests
+│   │   └── test_utils.py        # Message sanitization and HTML stripping tests
 │   ├── .env.example             # API key template
 │   └── requirements.txt
 ├── frontend/
