@@ -349,32 +349,47 @@ The routing configuration in the root directory manages API rewrites and delegat
 
 ---
 
-## 5. Quality Attributes
+## 5. Quality Attributes & Code Hardening
 
-### 🔒 Security
-- **No Secrets in Code**: All configs via environment variables. Keyless mode triggers MockLLM fallback.
-- **Input Validation**: Pydantic v2 schemas reject malformed zone IDs and parameters.
-- **Prompt-Injection Defense**: User text is delimited in the system prompt. Dijkstra runs before the LLM.
-- **Rate Limiting**: Token-bucket middleware prevents API flooding.
+### 🔒 Security & Guardrails
+*   **Starlette Security Headers Middleware**: registered custom HTTP middleware block in [main.py](file:///home/hyprtest/Projects/Fifa/backend/app/main.py) which appends standard browser security headers to every API envelope response:
+    *   `Content-Security-Policy`: `"default-src 'self'; frame-ancestors 'none'; object-src 'none';"`
+    *   `Strict-Transport-Security`: `"max-age=31536000; includeSubDomains"`
+    *   `X-Frame-Options`: `"DENY"`
+    *   `X-Content-Type-Options`: `"nosniff"`
+    *   `X-XSS-Protection`: `"1; mode=block"`
+    *   `Referrer-Policy`: `"strict-origin-when-cross-origin"`
+*   **Token-Bucket IP Rate Limiting**: configured `rate_limit_dependency` in [rate_limit.py](file:///home/hyprtest/Projects/Fifa/backend/app/utils/rate_limit.py) supporting `X-Forwarded-For` request header resolution to identify client IPs behind reverse-proxies. Applied dependency to protect all REST endpoints (`/navigate`, `/crowd/`, `/alerts`, `/recommendations`, and `/chat`).
+*   **WebSocket Origin & rate checks**: enforced origin checking in [crowd.py](file:///home/hyprtest/Projects/Fifa/backend/app/routes/crowd.py) (restricting socket connections to local development or Vercel production domains), combined with rolling-window IP rate limiting checks inside the WebSocket subscription route.
+*   **Recursive HTML Sanitization & Input Checks**: developed a recursive HTML tag-stripping utility `strip_html` in [validators.py](file:///home/hyprtest/Projects/Fifa/backend/app/utils/validators.py) to block script injection bypass payloads (e.g. `<<script>script>`). Used to sanitize both user input messages and co-pilot response strings before they are dispatched.
+*   **dev_info Gating**: Gated verbose debug metrics (intent classification, tokens, fallback flags) behind settings `dev_mode` flag to prevent data exposure to production users.
 
-### ⚡ Efficiency
-- **Config Cache**: Stadium metadata loaded once at startup.
-- **Short-circuiting**: Navigation templates bypass LLM calls for standard queries.
-- **Async Endpoints**: FastAPI's non-blocking handlers serve concurrent requests.
-- **WebSocket Singleton**: Module-level socket cache prevents duplicate TCP connections.
+### 📐 Code Quality & Refactoring Standards
+*   **Function Complexity Reduction**: Refactored complex/long functions to align with Single Responsibility Principle (SRP) and keep cyclomatic complexity low:
+    *   `NavigationEngine.find_route` was broken down into private solver `_run_dijkstra` and path constructor `_reconstruct_path` helpers.
+    *   `handle_chat` was broken down into `_extract_routing_zones`, `_resolve_target_type`, and `_resolve_facility_route` helpers.
+    *   `GeminiClient._build_prompt` was broken down into `_get_timeline_phase`, `_format_stadium_context`, and `_format_snapshots_and_alerts_context` helpers.
+*   **Strict Pydantic Literal Validations**: Upgraded models in [models.py](file:///home/hyprtest/Projects/Fifa/backend/app/models.py) to utilize `typing.Literal` types instead of basic strings for defined fields (Alert levels, Recommendation priorities, Chat message roles). Added `model_config = {"extra": "ignore"}` to prevent unexpected field leaks.
+*   **Docstring Coverage**: Wrote complete PEP-257 docstrings and structural type annotations for all route handlers, classes, methods, and test blocks.
+*   **Constants over Magic Numbers**: Extracted walk speed factors, congestion weights, default densities, and match times into module constants to prevent magic numbers clutter.
+
+### ⚡ Efficiency & Scaling
+*   **Adjacency List Dijkstra**: Walk calculations run under sub-millisecond ranges using Python's `heapq` priority queue.
+*   **Non-Blocking WebSocket Coroutines**: Stream updates are run concurrently using non-blocking asynchronous event loops.
+*   **Duplicate Imports Cleanup**: Eliminated duplicate `STADIUM_ZONES` and `ZONE_GRAPH` metadata structures from `crowd.py` in favor of centralized configurations in [stadiums.py](file:///home/hyprtest/Projects/Fifa/backend/app/services/stadiums.py).
 
 ### ♿ Accessibility — WCAG 2.1 AA
-- **Visual Paths**: Wheelchair routes rendered in high-contrast purple/violet SVG vectors.
-- **Semantic HTML**: Logical heading hierarchy, single `<h1>`, tab-navigable outlines.
-- **A11y Theme**: High-visibility mode with large text and high-contrast borders.
-- **TTS**: Every AI reply can be spoken aloud in the user's language.
+*   **Visual Paths**: Wheelchair routes rendered in high-contrast purple/violet SVG vectors.
+*   **Semantic HTML**: Logical heading hierarchy, single `<h1>`, tab-navigable outlines.
+*   **A11y Theme**: High-visibility mode with large text and high-contrast borders.
+*   **TTS**: Every AI reply can be spoken aloud in the user's language. Corrected Spanish dictionary translation typos and added `"hi"` and `"ta"` to validators.
 
 ### 🧪 Testing & Code Coverage
-- **Backend** — 55 test cases with **88% statement coverage** (Dijkstra routing, accessibility mode, rate limiting, and Gemini fallback generation):
+*   **Backend** — 55 test cases with **88% statement coverage** (Dijkstra routing, accessibility mode, rate limiting, and Gemini fallback generation):
   ```bash
   cd backend && pytest tests/ -v
   ```
-- **Frontend** — 8 Vitest unit tests (TopNavbar toggle accessibility, search, inputs, map details):
+*   **Frontend** — 8 Vitest unit tests (TopNavbar toggle accessibility, search, inputs, map details):
   ```bash
   cd frontend && npm run test -- --run
   ```
