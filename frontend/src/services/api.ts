@@ -1,5 +1,8 @@
 const API_BASE = '/api/v1';
 
+const routeCache = new Map<string, any>();
+const pendingRouteRequests = new Map<string, Promise<any>>();
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
@@ -39,11 +42,33 @@ export async function fetchRecommendations(zoneId?: string, stadiumId?: string) 
 }
 
 export async function fetchRoute(fromZone: string, toZone: string, stadiumId?: string, accessibilityMode?: boolean) {
+  const cacheKey = JSON.stringify({ fromZone, toZone, stadiumId: stadiumId ?? '', accessibilityMode: Boolean(accessibilityMode) });
+
+  if (routeCache.has(cacheKey)) {
+    return routeCache.get(cacheKey);
+  }
+
+  const pendingRequest = pendingRouteRequests.get(cacheKey);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
   let url = `${API_BASE}/navigate/?from_zone=${fromZone}&to_zone=${toZone}`;
   if (stadiumId) url += `&stadium_id=${stadiumId}`;
   if (accessibilityMode !== undefined) url += `&accessibility_mode=${accessibilityMode}`;
-  const response = await fetch(url);
-  return handleResponse<any>(response);
+
+  const request = fetch(url)
+    .then(response => handleResponse<any>(response))
+    .then(data => {
+      routeCache.set(cacheKey, data);
+      return data;
+    })
+    .finally(() => {
+      pendingRouteRequests.delete(cacheKey);
+    });
+
+  pendingRouteRequests.set(cacheKey, request);
+  return request;
 }
 
 export async function sendChatMessage(

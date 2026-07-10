@@ -27,7 +27,7 @@ import { ToastSystem } from './shared/components/ToastSystem';
 
 function AppContent() {
   const { state, setCurrentZone, toggleDevMode, setSimulationTime } = useApp();
-  const { loadData } = useCrowdData();
+  const { } = useCrowdData();
   const { setMatchTime } = useSimulation();
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHero, setShowHero] = useState(true);
@@ -88,25 +88,35 @@ function AppContent() {
     }
   }, [state.chat_history, state.user.stadium_id, state.user.accessibility_mode, setCurrentZone]);
 
+  // Client-side route cache — avoids re-fetching the same path (no LLM cost but saves backend calls)
+  const routeCacheRef = useRef<Map<string, any>>(new Map());
+
   const handleZoneClick = async (zoneId: string) => {
     if (state.current_zone_id && state.current_zone_id !== zoneId) {
-      try {
-        const routeData = await fetchRoute(
-          state.current_zone_id,
-          zoneId,
-          state.user.stadium_id,
-          state.user.accessibility_mode
-        );
-        setCurrentRoute(routeData);
-      } catch (error) {
-        console.error('Failed to fetch route:', error);
-        setCurrentRoute(null);
+      const cacheKey = `${state.current_zone_id}_${zoneId}_${state.user.stadium_id}_${state.user.accessibility_mode}`;
+      const cached = routeCacheRef.current.get(cacheKey);
+      if (cached) {
+        setCurrentRoute(cached);
+      } else {
+        try {
+          const routeData = await fetchRoute(
+            state.current_zone_id,
+            zoneId,
+            state.user.stadium_id,
+            state.user.accessibility_mode
+          );
+          routeCacheRef.current.set(cacheKey, routeData);
+          setCurrentRoute(routeData);
+        } catch (error) {
+          console.error('Failed to fetch route:', error);
+          setCurrentRoute(null);
+        }
       }
     } else {
       setCurrentRoute(null);
     }
     setCurrentZone(zoneId);
-    loadData();
+    // NOTE: loadData() removed — crowd data streams in via WebSocket automatically
   };
 
   const handleEnterGuide = () => {

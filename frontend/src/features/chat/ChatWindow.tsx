@@ -159,8 +159,18 @@ export function ChatWindow({ currentZoneId }: { currentZoneId?: string | null })
     await sendAIMessage(chip.query, currentZoneId);
   };
 
-  const handleQuickAction = (action: string) => {
-    console.log('Quick action:', action);
+  const handleQuickAction = async (action: string) => {
+    const actionQueries: Record<string, string> = {
+      map:       'Show this location on the stadium map',
+      navigate:  'Give me directions to the nearest exit from here',
+      food:      'Where is the nearest food court with the shortest queue?',
+      alt_route: 'Is there an alternative accessible route I can take?',
+    };
+    const query = actionQueries[action];
+    if (query) {
+      setShowSuggestions(false);
+      await sendAIMessage(query, currentZoneId);
+    }
   };
 
   const getIntentMeta = (intent: IntentType) => INTENT_META[intent] ?? INTENT_META[IntentType.GENERAL];

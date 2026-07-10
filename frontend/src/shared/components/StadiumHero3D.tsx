@@ -236,13 +236,20 @@ function FloatingFootball() {
 }
 
 export function StadiumHero3D() {
+  const containerRef = useRef<HTMLDivElement>(null);
   return (
-    <div className="absolute inset-0 w-full h-full" style={{ background: '#020408' }}>
+    <div ref={containerRef} className="absolute inset-0 w-full h-full" style={{ background: '#020408' }}>
       <Canvas
         camera={{ position: [0, 14, 52], fov: 50 }}
         shadows
         gl={{ antialias: true, alpha: true }}
         style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
+        eventSource={containerRef as React.RefObject<HTMLElement>}
+        onCreated={({ gl }) => {
+          // Prevent passive event listener warnings from Three.js internal wheel handler
+          const canvas = gl.domElement;
+          canvas.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+        }}
       >
         <color attach="background" args={["#020408"]} />
         <fog attach="fog" args={["#020408", 40, 150]} />

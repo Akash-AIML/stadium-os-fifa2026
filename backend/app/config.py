@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     model_name: str = "gemini-2.5-flash"
     max_request_length: int = 500
-    rate_limit_per_minute: int = 20
+    rate_limit_per_minute: int = 60
     cors_origins: list[str] = [
         "http://localhost:5173",
         "https://*.vercel.app",
