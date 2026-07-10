@@ -1,4 +1,5 @@
 import time
+import logging
 from datetime import datetime
 from app.config import settings
 from app.models import IntentType, CrowdSnapshot, Alert, Route
@@ -22,7 +23,7 @@ FALLBACK_TRANSLATIONS = {
     "es": {
         "route_found": "Ruta encontrada: {path}. Tiempo estimado: {time} minutos. {rationale}",
         "busy_zones": "Actualmente concurrido: {zones}. Considere evitar estas áreas.",
-        "clear_zones": "Las condiciones del estadio son geralmente despejadas. ¡Disfruta el partido!",
+        "clear_zones": "Las condiciones del estadio son generalmente despejadas. ¡Disfruta el partido!",
         "recommend_food": "Recomendar {zone} - actualmente menos concurrido con {time} min de espera.",
         "limited_mode": "Entiendo que preguntas: '{message}'. Actualmente estoy en modo limitado. Para asistencia completa, asegúrese de que los servicios de IA estén disponibles."
     },
@@ -85,13 +86,25 @@ FALLBACK_TRANSLATIONS = {
 }
 
 
+logger = logging.getLogger(__name__)
+
+
 class GeminiClient:
+    """
+    Client wrapper for interacting with the Google Gemini Generative AI API.
+    Provides natural language explanations based on Dijkstra routes and simulated crowd contexts,
+    and falls back to rule-based template logic when offline or keyless.
+    """
+
     def __init__(self):
         self.api_key = settings.gemini_api_key
         self.model = None
         if GENAI_AVAILABLE and self.api_key and self.api_key != "your_api_key_here":
+            logger.info("Initializing Google Gemini client using model %s", settings.model_name)
             genai.configure(api_key=self.api_key)
             self.model = genai.GenerativeModel(settings.model_name)
+        else:
+            logger.warning("Gemini API key not configured or package missing. Falling back to rules engine.")
 
     def generate_response(
         self,
@@ -104,6 +117,10 @@ class GeminiClient:
         stadium_id: str = "metlife",
         accessibility_mode: bool = False,
     ) -> dict:
+        """
+        Queries Gemini with local context parameters, returning structured JSON response metadata.
+        Falls back seamlessly to hardcoded localized template responses on timeouts/failures.
+        """
         start_time = time.time()
         is_fallback = False
         confidence = 0.0
@@ -112,6 +129,7 @@ class GeminiClient:
         try:
             if self.model and GENAI_AVAILABLE:
                 prompt = self._build_prompt(intent, context_data, user_message, language, alerts, route, stadium_id, accessibility_mode)
+                logger.info("Sending content generation prompt to Gemini model")
                 response = self.model.generate_content(prompt)
                 text = response.text.strip()
                 confidence = 0.85
@@ -121,7 +139,8 @@ class GeminiClient:
                 is_fallback = True
                 confidence = 0.6
 
-        except Exception:
+        except Exception as e:
+            logger.warning("Gemini AI generation failed. Running offline fallback generator. Reason: %s", str(e))
             text = self._generate_fallback_response(intent, context_data, user_message, language, alerts, route, stadium_id, accessibility_mode)
             is_fallback = True
             confidence = 0.5
@@ -137,48 +156,33 @@ class GeminiClient:
             "prompt_tokens": prompt_tokens,
         }
 
-    def _build_prompt(
-        self,
-        intent: IntentType,
-        context_data: list[CrowdSnapshot],
-        user_message: str,
-        language: str,
-        alerts: list[Alert],
-        route: Route | None,
-        stadium_id: str = "metlife",
-        accessibility_mode: bool = False,
-    ) -> str:
-        from app.services.stadiums import STADIUMS_CONFIG
-        from app.services.crowd import crowd_engine
-        config = STADIUMS_CONFIG.get(stadium_id, STADIUMS_CONFIG["metlife"])
-        match_details = config["todaysMatch"]
-        elapsed_minutes = crowd_engine.match_time_minutes
-        
-        timeline_phase = "Pre-match"
+    def _get_timeline_phase(self, elapsed_minutes: int) -> str:
+        """
+        Maps game minute count to active timeline match phase descriptions.
+        """
         if elapsed_minutes >= 90:
-            timeline_phase = "Fulltime (Post-match)"
-        elif elapsed_minutes >= 60:
-            timeline_phase = "Second Half"
-        elif elapsed_minutes >= 45:
-            timeline_phase = "Halftime"
-        elif elapsed_minutes >= 10:
-            timeline_phase = "First Half"
+            return "Fulltime (Post-match)"
+        if elapsed_minutes >= 60:
+            return "Second Half"
+        if elapsed_minutes >= 45:
+            return "Halftime"
+        if elapsed_minutes >= 10:
+            return "First Half"
+        return "Pre-match"
 
-        lang_names = {
-            "en": "English",
-            "es": "Spanish (Español)",
-            "fr": "French (Français)",
-            "de": "German (Deutsch)",
-            "pt": "Portuguese (Português)",
-            "ar": "Arabic (العربية)",
-            "ja": "Japanese (日本語)",
-            "zh": "Chinese (中文)",
-            "hi": "Hindi (हिन्दी)",
-            "ta": "Tamil (தமிழ்)"
-        }
-        full_lang = lang_names.get(language, "English")
-
-        context_str = f"""
+    def _format_stadium_context(
+        self,
+        config: dict,
+        timeline_phase: str,
+        elapsed_minutes: int,
+        accessibility_mode: bool,
+        full_lang: str
+    ) -> str:
+        """
+        Helper returning formatted stadium structure profile header.
+        """
+        match_details = config["todaysMatch"]
+        return f"""
 === SMART STADIUM CONTEXT ===
 Stadium: {config["name"]} ({config["locationName"]})
 Capacity: {config["capacity"]}
@@ -189,7 +193,16 @@ Weather: Clear, 22°C (Stadium roof: Open)
 User Language: {full_lang}
 """
 
-        context_str += "\nZONE DENSITIES & QUEUES:\n"
+    def _format_snapshots_and_alerts_context(
+        self,
+        context_data: list[CrowdSnapshot],
+        alerts: list[Alert],
+        route: Route | None
+    ) -> str:
+        """
+        Helper forming zone, queue, and alert segments of context.
+        """
+        context_str = "\nZONE DENSITIES & QUEUES:\n"
         for snapshot in context_data:
             zone_name = snapshot.zone_id.replace('_', ' ').title()
             context_str += f"- {zone_name}: status is '{snapshot.status.value}' (Density: {snapshot.density:.0%}, Queue Time: {snapshot.queue_time} min)\n"
@@ -208,6 +221,46 @@ Estimated Time: {route.estimated_time} minutes
 Average Crowd Level: {route.crowd_level:.0%}
 Reason/Rationale: {route.rationale}
 """
+        return context_str
+
+    def _build_prompt(
+        self,
+        intent: IntentType,
+        context_data: list[CrowdSnapshot],
+        user_message: str,
+        language: str,
+        alerts: list[Alert],
+        route: Route | None,
+        stadium_id: str = "metlife",
+        accessibility_mode: bool = False,
+    ) -> str:
+        """
+        Assembles contextual state snapshot parameters and structural generation directions
+        into the system instruct prompt payload.
+        """
+        from app.services.stadiums import STADIUMS_CONFIG
+        from app.services.crowd import crowd_engine
+        config = STADIUMS_CONFIG.get(stadium_id, STADIUMS_CONFIG["metlife"])
+        elapsed_minutes = crowd_engine.match_time_minutes
+        
+        timeline_phase = self._get_timeline_phase(elapsed_minutes)
+
+        lang_names = {
+            "en": "English",
+            "es": "Spanish (Español)",
+            "fr": "French (Français)",
+            "de": "German (Deutsch)",
+            "pt": "Portuguese (Português)",
+            "ar": "Arabic (العربية)",
+            "ja": "Japanese (日本語)",
+            "zh": "Chinese (中文)",
+            "hi": "Hindi (हिन्दी)",
+            "ta": "Tamil (தமிழ்)"
+        }
+        full_lang = lang_names.get(language, "English")
+
+        context_str = self._format_stadium_context(config, timeline_phase, elapsed_minutes, accessibility_mode, full_lang)
+        context_str += self._format_snapshots_and_alerts_context(context_data, alerts, route)
 
         prompt = f"""You are the conversational AI layer of the {config["name"]} Smart Stadium Operating System, built for the FIFA World Cup 2026.
 Respond strictly in the {full_lang} language. Translate any stadium zone names, gates, restrooms, food concessions, and headers into {full_lang} where appropriate. Be concise, professional, and helpful.

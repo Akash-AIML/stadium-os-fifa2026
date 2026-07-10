@@ -1,46 +1,22 @@
 import math
+import logging
 from datetime import datetime
 from app.models import CrowdSnapshot, ZoneStatus, Alert, Zone
 
-STADIUM_ZONES = [
-    {"id": "gate_north", "label": "North Gate", "type": "entrance", "location": [400, 100]},
-    {"id": "gate_south", "label": "South Gate", "type": "entrance", "location": [400, 700]},
-    {"id": "gate_east", "label": "East Gate", "type": "entrance", "location": [700, 400]},
-    {"id": "gate_west", "label": "West Gate", "type": "entrance", "location": [100, 400]},
-    {"id": "section_a", "label": "Section A", "type": "seating", "location": [300, 200]},
-    {"id": "section_b", "label": "Section B", "type": "seating", "location": [500, 200]},
-    {"id": "section_c", "label": "Section C", "type": "seating", "location": [300, 600]},
-    {"id": "section_d", "label": "Section D", "type": "seating", "location": [500, 600]},
-    {"id": "food_court_a", "label": "Food Court A", "type": "food", "location": [200, 300]},
-    {"id": "food_court_b", "label": "Food Court B", "type": "food", "location": [600, 300]},
-    {"id": "food_court_c", "label": "Food Court C", "type": "food", "location": [200, 500]},
-    {"id": "food_court_d", "label": "Food Court D", "type": "food", "location": [600, 500]},
-    {"id": "wc_north", "label": "Restroom North", "type": "wc", "location": [350, 150]},
-    {"id": "wc_south", "label": "Restroom South", "type": "wc", "location": [450, 650]},
-    {"id": "medical_center", "label": "Medical Center", "type": "medical", "location": [100, 200]},
-    {"id": "exit_main", "label": "Main Exit", "type": "exit", "location": [400, 750]},
-    {"id": "exit_emergency", "label": "Emergency Exit", "type": "exit", "location": [750, 400]},
-]
+logger = logging.getLogger(__name__)
 
-ZONE_GRAPH = {
-    "gate_north": ["section_a", "section_b", "wc_north", "food_court_a", "food_court_b"],
-    "gate_south": ["section_c", "section_d", "wc_south", "food_court_c", "food_court_d", "exit_main"],
-    "gate_east": ["section_b", "section_d", "food_court_b", "food_court_d", "exit_emergency"],
-    "gate_west": ["section_a", "section_c", "food_court_a", "food_court_c", "medical_center"],
-    "section_a": ["gate_north", "gate_west", "food_court_a", "wc_north"],
-    "section_b": ["gate_north", "gate_east", "food_court_b", "wc_north"],
-    "section_c": ["gate_south", "gate_west", "food_court_c", "wc_south"],
-    "section_d": ["gate_south", "gate_east", "food_court_d", "wc_south"],
-    "food_court_a": ["gate_north", "gate_west", "section_a", "section_c"],
-    "food_court_b": ["gate_north", "gate_east", "section_b", "section_d"],
-    "food_court_c": ["gate_south", "gate_west", "section_c", "section_d"],
-    "food_court_d": ["gate_south", "gate_east", "section_c", "section_d"],
-    "wc_north": ["gate_north", "section_a", "section_b"],
-    "wc_south": ["gate_south", "section_c", "section_d"],
-    "medical_center": ["gate_west", "section_a"],
-    "exit_main": ["gate_south", "section_c", "section_d"],
-    "exit_emergency": ["gate_east", "section_b", "section_d"],
-}
+# Simulation constants
+DEFAULT_DENSITY = 0.3
+DENSITY_LEVEL_LOW = 0.3
+DENSITY_LEVEL_MODERATE = 0.5
+DENSITY_LEVEL_BUSY = 0.75
+QUEUE_MULTIPLIER = 30
+CRITICAL_DENSITY_THRESHOLD = 0.9
+
+# Match clock constants
+HALFTIME_START = 45
+HALFTIME_END = 60
+FULLTIME = 90
 
 
 class CrowdEngine:
@@ -66,6 +42,7 @@ class CrowdEngine:
         """
         Updates the simulation minute (clamped between 0 and 120 minutes).
         """
+        logger.info("Setting simulation match time to %d minutes", minutes)
         self.match_time_minutes = max(0, min(120, minutes))
 
     def get_all_zones(self, stadium_id: str = "metlife") -> list[Zone]:
@@ -90,6 +67,9 @@ class CrowdEngine:
         return zones
 
     def get_all_snapshots(self, stadium_id: str = "metlife") -> list[CrowdSnapshot]:
+        """
+        Calculates density status snapshots for every zone within the stadium configuration.
+        """
         config = self.get_stadium_config(stadium_id)
         snapshots = []
         for zone in config["zones"]:
@@ -98,55 +78,62 @@ class CrowdEngine:
         return snapshots
 
     def get_snapshot(self, zone_id: str, stadium_id: str = "metlife") -> CrowdSnapshot:
+        """
+        Resolves a single crowd snapshot for a given zone.
+        """
         config = self.get_stadium_config(stadium_id)
         zone = next((z for z in config["zones"] if z["id"] == zone_id), None)
         if not zone:
+            logger.error("Snapshot resolution failed: zone %s not found in stadium %s", zone_id, stadium_id)
             raise ValueError(f"Zone {zone_id} not found")
 
         density = self._calculate_density(zone)
         status = self._density_to_status(density)
-        queue_time = int(density * 30) if zone["type"] in ["food", "wc", "entrance"] else 0
+        queue_time = int(density * QUEUE_MULTIPLIER) if zone["type"] in ["food", "wc", "entrance"] else 0
 
         return CrowdSnapshot(zone_id=zone_id, density=density, status=status, queue_time=queue_time)
 
     def _calculate_density(self, zone: dict) -> float:
+        """
+        Computes dynamic zone density coefficients based on active match clock state.
+        """
         zone_type = zone["type"]
         match_time = self.match_time_minutes
 
-        base_density = 0.3
+        base_density = DEFAULT_DENSITY
 
         if zone_type == "entrance":
             if match_time < 30:
                 base_density = 0.7 + 0.2 * math.sin(match_time * 0.1)
-            elif match_time > 90:
+            elif match_time > FULLTIME:
                 base_density = 0.4
             else:
                 base_density = 0.2
 
         elif zone_type == "seating":
-            if 30 <= match_time <= 90:
+            if 30 <= match_time <= FULLTIME:
                 base_density = 0.9
-            elif match_time > 90:
+            elif match_time > FULLTIME:
                 base_density = 0.3
             else:
                 base_density = 0.4
 
         elif zone_type == "food":
-            if 45 <= match_time <= 60:
+            if HALFTIME_START <= match_time <= HALFTIME_END:
                 base_density = 0.85
-            elif match_time < 30 or match_time > 90:
+            elif match_time < 30 or match_time > FULLTIME:
                 base_density = 0.6
             else:
                 base_density = 0.3
 
         elif zone_type == "wc":
-            if 45 <= match_time <= 60:
+            if HALFTIME_START <= match_time <= HALFTIME_END:
                 base_density = 0.9
             else:
                 base_density = 0.4
 
         elif zone_type == "exit":
-            if match_time > 90:
+            if match_time > FULLTIME:
                 base_density = 0.8
             else:
                 base_density = 0.2
@@ -157,16 +144,22 @@ class CrowdEngine:
         return min(1.0, max(0.0, base_density))
 
     def _density_to_status(self, density: float) -> ZoneStatus:
-        if density < 0.3:
+        """
+        Maps a float density scale to structural ZoneStatus enum categorizations.
+        """
+        if density < DENSITY_LEVEL_LOW:
             return ZoneStatus.CLEAR
-        elif density < 0.5:
+        elif density < DENSITY_LEVEL_MODERATE:
             return ZoneStatus.MODERATE
-        elif density < 0.75:
+        elif density < DENSITY_LEVEL_BUSY:
             return ZoneStatus.BUSY
         else:
             return ZoneStatus.CONGESTED
 
     def get_alerts(self, stadium_id: str = "metlife") -> list[Alert]:
+        """
+        Returns active warning or critical alerts when zone congestions arise.
+        """
         alerts = []
         snapshots = self.get_all_snapshots(stadium_id)
         for snapshot in snapshots:
@@ -174,7 +167,7 @@ class CrowdEngine:
                 alerts.append(
                     Alert(
                         id=f"alert_{snapshot.zone_id}",
-                        level="critical" if snapshot.density > 0.9 else "warning",
+                        level="critical" if snapshot.density > CRITICAL_DENSITY_THRESHOLD else "warning",
                         message=f"High congestion at {snapshot.zone_id.replace('_', ' ').title()}",
                         zone_id=snapshot.zone_id,
                     )
@@ -182,6 +175,9 @@ class CrowdEngine:
         return alerts
 
     def get_relevant_zones(self, zone_id: str | None = None, stadium_id: str = "metlife") -> list[CrowdSnapshot]:
+        """
+        Returns live snapshots for user's surrounding neighbor zones to enrich co-pilot recommendations.
+        """
         config = self.get_stadium_config(stadium_id)
         zone_graph = config["zone_graph"]
         if not zone_id or zone_id not in zone_graph:

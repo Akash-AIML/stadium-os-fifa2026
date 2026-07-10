@@ -33,7 +33,7 @@ StadiumOS helps fans navigate venues, locate accessible pathways, monitor real-t
 | Google Generative AI SDK | Gemini 2.5 Flash for explainability and multilingual responses |
 | Token-Bucket Rate Limiter | Custom middleware to protect endpoints from spamming |
 | python-dotenv | Environment management; key-free mode falls back to MockLLM |
-| pytest + pytest-asyncio | 39 backend test cases |
+| pytest + pytest-asyncio | 55 backend test cases |
 
 ---
 
@@ -369,14 +369,14 @@ The routing configuration in the root directory manages API rewrites and delegat
 - **A11y Theme**: High-visibility mode with large text and high-contrast borders.
 - **TTS**: Every AI reply can be spoken aloud in the user's language.
 
-### 🧪 Testing
-- **Backend** — 39 test cases (Dijkstra, accessibility, rate limiters, timeline generators):
+### 🧪 Testing & Code Coverage
+- **Backend** — 55 test cases with **88% statement coverage** (Dijkstra routing, accessibility mode, rate limiting, and Gemini fallback generation):
   ```bash
   cd backend && pytest tests/ -v
   ```
-- **Frontend** — 6 Vitest component tests (StadiumMap, Dashboard, ChatWindow):
+- **Frontend** — 8 Vitest unit tests (TopNavbar toggle accessibility, search, inputs, map details):
   ```bash
-  cd frontend && npx vitest run
+  cd frontend && npm run test -- --run
   ```
 
 ---
@@ -434,7 +434,7 @@ stadium-os-fifa2026/
 │   │   └── utils/
 │   │       ├── rate_limit.py    # Token-bucket rate limiter middleware
 │   │       └── validators.py    # Regex input sanitization helpers
-│   ├── tests/                   # 39 pytest test cases
+│   ├── tests/                   # 55 pytest test cases
 │   ├── .env.example             # API key template
 │   └── requirements.txt
 ├── frontend/
@@ -464,7 +464,7 @@ stadium-os-fifa2026/
 │   │   │       └── stadiums.ts      # Frontend venue zone configs & coordinates
 │   │   └── services/
 │   │       └── api.ts               # Fetch/Axios API client
-│   ├── tests/                       # 6 Vitest component tests
+│   ├── tests/                       # 8 Vitest component tests
 │   └── package.json
 └── vercel.json                  # Unified Vercel monorepo configuration
 ```

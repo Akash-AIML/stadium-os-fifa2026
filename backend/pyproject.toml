@@ -1,0 +1,29 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --tb=short --cov=app --cov-report=term-missing"
+testpaths = [
+    "tests",
+]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = [
+    "app/config.py",
+    "tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "except ImportError:",
+]
