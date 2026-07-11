@@ -186,7 +186,7 @@ def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
         id=str(uuid.uuid4()),
         role="model",
         content=clean_ai_text,
-        timestamp=ai_response.get("timestamp") or datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z",
+        timestamp=ai_response.get("timestamp") or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         intent=intent,
         context_snapshot=context_data,
         is_fallback=ai_response.get("is_fallback", False),

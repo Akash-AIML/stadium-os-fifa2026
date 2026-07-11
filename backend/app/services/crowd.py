@@ -1,6 +1,6 @@
 import math
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models import CrowdSnapshot, ZoneStatus, Alert, Zone
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class CrowdEngine:
     """
 
     def __init__(self):
-        self.base_time = datetime.now()
+        self.base_time = datetime.now(timezone.utc)
         self.match_time_minutes = 0
 
     def get_stadium_config(self, stadium_id: str = "metlife") -> dict:

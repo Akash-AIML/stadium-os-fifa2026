@@ -149,7 +149,7 @@ class GeminiClient:
 
         return {
             "text": text,
-            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "is_fallback": is_fallback,
             "response_time": round(response_time, 2),
             "confidence": confidence,
