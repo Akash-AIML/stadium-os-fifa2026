@@ -423,12 +423,11 @@ export function TopNavbar({ showChat, onToggleChat, onNavigate }: Readonly<TopNa
             {/* ── Center: Match Phases ─────────────────────── */}
             <div className="hidden md:flex items-center gap-1.5">
               {phases.map(({ label, Icon, time, active, color }) => {
-                let activeClass = 'border-transparent text-[hsl(var(--muted))] hover:text-[hsl(var(--fg))] hover:bg-[hsl(var(--elevated))]';
-                if (active) {
-                  activeClass = color === 'emerald'
+                const activeClass = active
+                  ? color === 'emerald'
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-400';
-                }
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  : 'border-transparent text-[hsl(var(--muted))] hover:text-[hsl(var(--fg))] hover:bg-[hsl(var(--elevated))]';
 
                 return (
                   <motion.button

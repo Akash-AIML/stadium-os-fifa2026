@@ -27,7 +27,7 @@ function StadiumRings() {
   return (
     <group ref={ringsRef}>
       {/* Seating tier representation 1 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.5, 0]}>
+      <mesh {...{ rotation: [-Math.PI / 2, 0, 0] as [number, number, number], position: [0, 1.5, 0] as [number, number, number] }}>
         <ringGeometry {...{ args: [28, 32, 64] }} />
         <meshStandardMaterial {...{
           color: "#0e1726",
@@ -37,7 +37,7 @@ function StadiumRings() {
         }} />
       </mesh>
       {/* Light Ring 1 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 6, 0]}>
+      <mesh {...{ rotation: [-Math.PI / 2, 0, 0] as [number, number, number], position: [0, 6, 0] as [number, number, number] }}>
         <ringGeometry {...{ args: [34, 35, 64] }} />
         <meshBasicMaterial {...{
           color: "#06b6d4",
@@ -47,7 +47,7 @@ function StadiumRings() {
         }} />
       </mesh>
       {/* Light Ring 2 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 12, 0]}>
+      <mesh {...{ rotation: [-Math.PI / 2, 0, 0] as [number, number, number], position: [0, 12, 0] as [number, number, number] }}>
         <ringGeometry {...{ args: [38, 38.5, 64] }} />
         <meshBasicMaterial {...{
           color: "#a855f7",
@@ -63,7 +63,7 @@ function StadiumRings() {
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         return (
-          <mesh key={i} position={[x, 6, z]}>
+          <mesh key={i} {...{ position: [x, 6, z] as [number, number, number] }}>
             <cylinderGeometry {...{ args: [0.2, 0.2, 12, 8] }} />
             <meshStandardMaterial {...{
               color: "#1e293b",
@@ -89,7 +89,7 @@ function StadiumField() {
   });
 
   return (
-    <mesh ref={fieldRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
+    <mesh ref={fieldRef} {...{ rotation: [-Math.PI / 2, 0, 0] as [number, number, number], position: [0, 0.1, 0] as [number, number, number] }}>
       <planeGeometry {...{ args: [56, 38, 30, 30] }} />
       <shaderMaterial {...{
         vertexShader: `
@@ -147,7 +147,7 @@ function StadiumLights() {
   return (
     <group>
       {[0, 90, 180, 270].map((angle, i) => (
-        <group key={i} rotation={[0, (angle * Math.PI) / 180, 0]}>
+        <group key={i} {...{ rotation: [0, (angle * Math.PI) / 180, 0] as [number, number, number] }}>
           <pointLight
             ref={el => { if (el) lightsRef.current[i] = el; }}
             {...{
@@ -158,7 +158,7 @@ function StadiumLights() {
               decay: 2
             }}
           />
-          <mesh position={[0, 25, 45]}>
+          <mesh {...{ position: [0, 25, 45] as [number, number, number] }}>
             <sphereGeometry {...{ args: [1.2, 16, 16] }} />
             <meshBasicMaterial {...{ color: i % 2 === 0 ? '#22d3ee' : '#c084fc' }} />
           </mesh>
@@ -235,7 +235,7 @@ function FloatingFootball() {
   });
 
   return (
-    <mesh ref={ballRef} position={[0, 8, 0]}>
+    <mesh ref={ballRef} {...{ position: [0, 8, 0] as [number, number, number] }}>
       <sphereGeometry {...{ args: [2, 16, 16] }} />
       <meshStandardMaterial {...{
         color: "#ffffff",
@@ -269,10 +269,10 @@ export function StadiumHero3D() {
         <Environment preset="city" background={false} />
         <Stars radius={200} depth={50} count={800} factor={4} saturation={0.5} fade />
 
-        <ambientLight intensity={0.25} />
+        <ambientLight {...{ intensity: 0.25 }} />
         {/* Cinematic Rim Lights */}
-        <directionalLight position={[0, 30, -50]} intensity={2.5} color="#a855f7" />
-        <directionalLight position={[0, 30, 50]} intensity={1.5} color="#06b6d4" />
+        <directionalLight {...{ position: [0, 30, -50] as [number, number, number], intensity: 2.5, color: '#a855f7' }} />
+        <directionalLight {...{ position: [0, 30, 50] as [number, number, number], intensity: 1.5, color: '#06b6d4' }} />
         
         <StadiumField />
         <StadiumRings />

@@ -28,7 +28,7 @@ async def get_crowd_data(
             raise ValueError(INVALID_STADIUM_ID)
 
         clean_stadium = stadium_id
-        logger.info("Fetching crowd data for zone_id=%s, stadium_id=%s", clean_zone, clean_stadium)
+        logger.info("Fetching crowd data (zone filter applied: %s)", bool(clean_zone))
         if clean_zone:
             snapshots = [crowd_engine.get_snapshot(clean_zone, clean_stadium)]
         else:
@@ -72,7 +72,7 @@ async def get_recommendations(
         raise ValueError(INVALID_STADIUM_ID)
 
     clean_stadium = stadium_id
-    logger.info("Fetching recommendations for zone_id=%s, stadium_id=%s", clean_zone, clean_stadium)
+    logger.info("Fetching recommendations (zone filter applied: %s)", bool(clean_zone))
     snapshots = crowd_engine.get_all_snapshots(clean_stadium)
     recs = recommendation_engine.generate(snapshots, clean_zone, clean_stadium)
     return ApiResponse(success=True, data=recs)

@@ -54,7 +54,7 @@ export function useNavigation() {
               location: meta.location,
               instruction,
               distance: index > 0 ? 50 + ((zoneId.codePointAt(0) ?? 0) % 10) * 10 : 0,
-              crowdLevel: crowdData?.density || 0,
+              crowdLevel: crowdData?.density ?? 0,
             };
           })
           .filter(Boolean) as RouteStep[];

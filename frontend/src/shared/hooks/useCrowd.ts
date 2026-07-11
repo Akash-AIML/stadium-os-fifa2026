@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ZoneStatus, CrowdSnapshot, Alert, Recommendation, CrowdZone } from '../types';
+import { ZoneStatus, Alert, Recommendation, CrowdZone } from '../types';
 import { fetchCrowdData, fetchAlerts, fetchRecommendations } from '../../services/api';
 import { STADIUM_ZONES_METADATA } from '../utils/zones';
 

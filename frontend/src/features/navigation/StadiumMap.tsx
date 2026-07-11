@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Layers, Users, Timer, TrendingUp, TrendingDown, Minus, Map as MapIcon, Navigation as NavigationIcon, Utensils, DoorOpen, Activity } from 'lucide-react';
+import { ZoomIn, ZoomOut, Layers, Users, Timer, TrendingUp, TrendingDown, Minus, Map as MapIcon, Navigation as NavigationIcon, Utensils, DoorOpen, Activity } from 'lucide-react';
 import { ZoneStatus, CrowdZone, Route } from '../../shared/types';
 import { STADIUMS_CONFIG } from '../../shared/utils/stadiums';
 import { useHeatMap } from '../../shared/hooks/useHeatMap';
@@ -250,10 +250,7 @@ const ZoneMarkerView = memo(({
       aria-pressed={isSelected}
       className="cursor-pointer"
       initial={{ scale: 0, opacity: 0 }}
-      animate={{
-        scale: scaleVal,
-        opacity: 1,
-      }}
+      animate={{ scale: scaleVal, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 280, damping: 22, delay: index * 0.025 }}
       whileTap={{ scale: 0.92 }}
       style={{ transformOrigin: `${coords[0]}px ${coords[1]}px` }}
@@ -267,7 +264,6 @@ const ZoneMarkerView = memo(({
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }}
         />
       )}
-
       {/* Glow halo */}
       <motion.circle
         cx={coords[0]} cy={coords[1]} r={r + 6}
@@ -275,8 +271,7 @@ const ZoneMarkerView = memo(({
         opacity={opacityVal}
         transition={{ duration: 0.25 }}
       />
-
-      {/* Zone shape — circle for gates, rounded-rect for sections */}
+      {/* Zone shape */}
       {isGate ? (
         <motion.circle
           cx={coords[0]} cy={coords[1]}
@@ -299,7 +294,6 @@ const ZoneMarkerView = memo(({
           transition={{ duration: 0.2 }}
         />
       )}
-
       {/* Selected ring */}
       {isSelected && (
         <motion.circle
@@ -313,7 +307,6 @@ const ZoneMarkerView = memo(({
           initial={{ r: r + 8, opacity: 0 }}
         />
       )}
-
       {/* Congested badge */}
       {isCritical && (
         <motion.circle
@@ -323,7 +316,6 @@ const ZoneMarkerView = memo(({
           transition={{ duration: 1.2, repeat: Infinity }}
         />
       )}
-
       {/* Trend arrow */}
       {zone.trend === 'up' && (
         <motion.text
@@ -343,7 +335,6 @@ const ZoneMarkerView = memo(({
           transition={{ delay: 0.5 }}
         >↓</motion.text>
       )}
-
       {/* Zone label */}
       {IconComponent ? (
         <g transform={`translate(${coords[0] - 7}, ${coords[1] - 7})`} className="pointer-events-none select-none">
@@ -378,7 +369,7 @@ export function StadiumMap({
   const [mapScale, setMapScale]           = useState(1);
   const [mapPosition, setMapPosition]     = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging]       = useState(false);
-  const [heatmapVisible, setHeatmapVisible] = useState(showHeatmap);
+  const heatmapVisible = showHeatmap;
   const dragStartRef = useRef({ x: 0, y: 0 });
   const svgRef       = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -507,6 +498,7 @@ export function StadiumMap({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUpOrLeave}
       onMouseLeave={handleMouseUpOrLeave}
+      onKeyDown={(e) => { if (e.key === 'Escape') setIsDragging(false); }}
       role="application"
       aria-label={`${stadiumConfig.name} Stadium Map`}
     >

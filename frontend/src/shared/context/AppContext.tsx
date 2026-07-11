@@ -80,8 +80,11 @@ export function AppProvider({ children }: Readonly<{ children: ReactNode }>) {
     if (globalSocket) {
       try {
         globalSocket.close();
-      } catch (e) {
-        // Ignored: cleanup socket if state is invalid or already closed
+      } catch (e: unknown) {
+        // Stale socket close can throw DOMException; log at debug level and continue
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug('WebSocket cleanup close error (ignored):', e);
+        }
       }
     }
 
@@ -136,15 +139,11 @@ export function AppProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   // Keep current_zone_id synchronized on changes
   useEffect(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ current_zone_id: state.current_zone_id }));
-    }
+    wsRef.current?.send(JSON.stringify({ current_zone_id: state.current_zone_id }));
   }, [state.current_zone_id]);
 
   const sendWSMessage = useCallback((msg: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg));
-    }
+    wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
   const contextValue = React.useMemo<AppContextType>(() => ({
