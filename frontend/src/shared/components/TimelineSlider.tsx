@@ -32,12 +32,20 @@ function getPos(t: number) {
   return ((t - MIN_TIME) / (MAX_TIME - MIN_TIME)) * 100;
 }
 
-export function TimelineSlider() {
+export function TimelineSlider(_props?: Readonly<Record<string, never>>) {
   const { state } = useApp();
   const { setMatchTime } = useSimulation();
   const [isDragging, setIsDragging]   = useState(false);
   const [hoveredStep, setHoveredStep] = useState<string | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      setMatchTime(Math.min(MAX_TIME, state.simulation_time + 5));
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      setMatchTime(Math.max(MIN_TIME, state.simulation_time - 5));
+    }
+  }, [state.simulation_time, setMatchTime]);
 
   const currentStep = [...TIMELINE_STEPS].reverse().find(s => state.simulation_time >= s.time) ?? TIMELINE_STEPS[0];
   const CurrentIcon = currentStep.Icon;
@@ -123,9 +131,11 @@ export function TimelineSlider() {
       {/* ── Segment bands + track ─────────────────────────────── */}
       <div
         ref={sliderRef}
-        className="relative cursor-pointer select-none"
+        className="relative cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded-lg"
         style={{ paddingTop: 20, paddingBottom: 28 }}
         onMouseDown={handleMouseDown}
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
         role="slider"
         aria-valuemin={MIN_TIME}
         aria-valuemax={MAX_TIME}
@@ -193,7 +203,6 @@ export function TimelineSlider() {
           const pos       = getPos(step.time);
           const isActive  = state.simulation_time >= step.time;
           const isCurrent = currentStep.id === step.id;
-          const isHov     = hoveredStep === step.id;
 
           return (
             <motion.button
@@ -246,6 +255,13 @@ export function TimelineSlider() {
             const isCurr   = currentStep.id === step.id;
             // Only show subset to prevent overlap
             if (i % 2 !== 0 && i !== TIMELINE_STEPS.length - 1) return null;
+            let stepColor = 'hsl(var(--muted-fg))';
+            if (isCurr) {
+              stepColor = step.color;
+            } else if (isActive) {
+              stepColor = 'hsl(var(--muted))';
+            }
+
             return (
               <div
                 key={step.id}
@@ -253,7 +269,7 @@ export function TimelineSlider() {
                 style={{ left: `${pos}%`, transform: 'translateX(-50%)', width: 40 }}
               >
                 <p className="text-[9px] font-semibold truncate"
-                  style={{ color: isCurr ? step.color : isActive ? 'hsl(var(--muted))' : 'hsl(var(--muted-fg))' }}>
+                  style={{ color: stepColor }}>
                   {step.label}
                 </p>
               </div>

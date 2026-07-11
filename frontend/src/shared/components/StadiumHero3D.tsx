@@ -1,8 +1,18 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Environment, ContactShadows } from '@react-three/drei';
-import { motion } from 'framer-motion';
+
+// Seedable LCG Pseudo-random number generator to replace Math.random S2245
+function lcgRandom(seed: number) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) % 4294967296;
+    return s / 4294967296;
+  };
+}
+
+const nextRandom = lcgRandom(12345);
 
 // ── Stadium Rings representing modern digital stadium architecture ───────────
 function StadiumRings() {
@@ -17,34 +27,34 @@ function StadiumRings() {
   return (
     <group ref={ringsRef}>
       {/* Seating tier representation 1 */}
-      <mesh rotation-x={-Math.PI / 2} position-y={1.5}>
-        <ringGeometry args={[28, 32, 64]} />
-        <meshStandardMaterial
-          color="#0e1726"
-          roughness={0.4}
-          metalness={0.8}
-          side={THREE.DoubleSide}
-        />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 1.5, 0]}>
+        <ringGeometry {...{ args: [28, 32, 64] }} />
+        <meshStandardMaterial {...{
+          color: "#0e1726",
+          roughness: 0.4,
+          metalness: 0.8,
+          side: THREE.DoubleSide
+        }} />
       </mesh>
       {/* Light Ring 1 */}
-      <mesh rotation-x={-Math.PI / 2} position-y={6}>
-        <ringGeometry args={[34, 35, 64]} />
-        <meshBasicMaterial
-          color="#06b6d4"
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.6}
-        />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 6, 0]}>
+        <ringGeometry {...{ args: [34, 35, 64] }} />
+        <meshBasicMaterial {...{
+          color: "#06b6d4",
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.6
+        }} />
       </mesh>
       {/* Light Ring 2 */}
-      <mesh rotation-x={-Math.PI / 2} position-y={12}>
-        <ringGeometry args={[38, 38.5, 64]} />
-        <meshBasicMaterial
-          color="#a855f7"
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.4}
-        />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 12, 0]}>
+        <ringGeometry {...{ args: [38, 38.5, 64] }} />
+        <meshBasicMaterial {...{
+          color: "#a855f7",
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.4
+        }} />
       </mesh>
       {/* Cyber pillars */}
       {Array.from({ length: 16 }).map((_, i) => {
@@ -54,12 +64,12 @@ function StadiumRings() {
         const z = Math.sin(angle) * radius;
         return (
           <mesh key={i} position={[x, 6, z]}>
-            <cylinderGeometry args={[0.2, 0.2, 12, 8]} />
-            <meshStandardMaterial
-              color="#1e293b"
-              roughness={0.2}
-              metalness={0.9}
-            />
+            <cylinderGeometry {...{ args: [0.2, 0.2, 12, 8] }} />
+            <meshStandardMaterial {...{
+              color: "#1e293b",
+              roughness: 0.2,
+              metalness: 0.9
+            }} />
           </mesh>
         );
       })}
@@ -79,17 +89,17 @@ function StadiumField() {
   });
 
   return (
-    <mesh ref={fieldRef} rotation-x={-Math.PI / 2} position-y={0.1}>
-      <planeGeometry args={[56, 38, 30, 30]} />
-      <shaderMaterial
-        vertexShader={`
+    <mesh ref={fieldRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
+      <planeGeometry {...{ args: [56, 38, 30, 30] }} />
+      <shaderMaterial {...{
+        vertexShader: `
           varying vec2 vUv;
           void main() {
             vUv = uv;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
-        `}
-        fragmentShader={`
+        `,
+        fragmentShader: `
           uniform float time;
           varying vec2 vUv;
           void main() {
@@ -114,9 +124,9 @@ function StadiumField() {
             
             gl_FragColor = vec4(grass, 1.0);
           }
-        `}
-        uniforms={{ time: { value: 0 } }}
-      />
+        `,
+        uniforms: { time: { value: 0 } }
+      }} />
     </mesh>
   );
 }
@@ -137,18 +147,20 @@ function StadiumLights() {
   return (
     <group>
       {[0, 90, 180, 270].map((angle, i) => (
-        <group key={i} rotation-y={(angle * Math.PI) / 180}>
+        <group key={i} rotation={[0, (angle * Math.PI) / 180, 0]}>
           <pointLight
             ref={el => { if (el) lightsRef.current[i] = el; }}
-            position={[0, 25, 45]}
-            intensity={3}
-            color={i % 2 === 0 ? '#06b6d4' : '#a855f7'}
-            distance={120}
-            decay={2}
+            {...{
+              position: [0, 25, 45],
+              intensity: 3,
+              color: i % 2 === 0 ? '#06b6d4' : '#a855f7',
+              distance: 120,
+              decay: 2
+            }}
           />
           <mesh position={[0, 25, 45]}>
-            <sphereGeometry args={[1.2, 16, 16]} />
-            <meshBasicMaterial color={i % 2 === 0 ? '#22d3ee' : '#c084fc'} />
+            <sphereGeometry {...{ args: [1.2, 16, 16] }} />
+            <meshBasicMaterial {...{ color: i % 2 === 0 ? '#22d3ee' : '#c084fc' }} />
           </mesh>
         </group>
       ))}
@@ -174,16 +186,16 @@ function CrowdParticles() {
     const colors = new Float32Array(count * 3);
 
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 30 + Math.random() * 8;
-      const height = Math.random() * 8;
+      const angle = nextRandom() * Math.PI * 2;
+      const radius = 30 + nextRandom() * 8;
+      const height = nextRandom() * 8;
 
       positions[i * 3] = Math.cos(angle) * radius;
       positions[i * 3 + 1] = height;
       positions[i * 3 + 2] = Math.sin(angle) * radius;
 
       // Cyan / Magenta crowd lighting colors
-      const isCyan = Math.random() > 0.5;
+      const isCyan = nextRandom() > 0.5;
       colors[i * 3] = isCyan ? 0.02 : 0.65;
       colors[i * 3 + 1] = isCyan ? 0.71 : 0.2;
       colors[i * 3 + 2] = isCyan ? 0.83 : 0.96;
@@ -196,15 +208,15 @@ function CrowdParticles() {
 
   return (
     <points ref={particles}>
-      <primitive object={geometry} attach="geometry" />
-      <pointsMaterial
-        size={0.4}
-        vertexColors
-        transparent
-        opacity={0.7}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
+      <primitive {...{ object: geometry, attach: "geometry" }} />
+      <pointsMaterial {...{
+        size: 0.4,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      }} />
     </points>
   );
 }
@@ -224,13 +236,13 @@ function FloatingFootball() {
 
   return (
     <mesh ref={ballRef} position={[0, 8, 0]}>
-      <sphereGeometry args={[2, 16, 16]} />
-      <meshStandardMaterial
-        color="#ffffff"
-        roughness={0.2}
-        metalness={0.1}
-        wireframe
-      />
+      <sphereGeometry {...{ args: [2, 16, 16] }} />
+      <meshStandardMaterial {...{
+        color: "#ffffff",
+        roughness: 0.2,
+        metalness: 0.1,
+        wireframe: true
+      }} />
     </mesh>
   );
 }
@@ -251,8 +263,8 @@ export function StadiumHero3D() {
           canvas.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
         }}
       >
-        <color attach="background" args={["#020408"]} />
-        <fog attach="fog" args={["#020408", 40, 150]} />
+        <color {...{ attach: "background", args: ["#020408"] }} />
+        <fog {...{ attach: "fog", args: ["#020408", 40, 150] }} />
 
         <Environment preset="city" background={false} />
         <Stars radius={200} depth={50} count={800} factor={4} saturation={0.5} fade />

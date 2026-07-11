@@ -46,8 +46,8 @@ export function useTextToSpeech() {
 
       // Strip markdown tags to read cleanly
       const cleanText = text
-        .replace(/[*#`_\-]/g, '')
-        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+        .replace(/[*#`_-]/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
 

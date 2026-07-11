@@ -1,4 +1,4 @@
-import { ZoneStatus } from '../types';
+
 
 export interface StadiumConfig {
   id: 'metlife' | 'sofi' | 'azteca';

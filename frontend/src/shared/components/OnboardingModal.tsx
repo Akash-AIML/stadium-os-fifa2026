@@ -5,7 +5,7 @@ interface OnboardingModalProps {
   onComplete: () => void;
 }
 
-export function OnboardingModal({ onComplete }: OnboardingModalProps) {
+export function OnboardingModal({ onComplete }: Readonly<OnboardingModalProps>) {
   const { state, setUser } = useApp();
   const [name, setName] = useState(state.user.name);
   const [language, setLanguage] = useState(state.user.language);
@@ -19,7 +19,7 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <dialog open className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 border-0" aria-modal="true" aria-labelledby="modal-title">
       <div className="glass-panel rounded-2xl p-6 sm:p-8 max-w-md w-full border border-slate-800/80 shadow-2xl relative overflow-hidden">
         {/* Glow backdrop decorative bubbles */}
         <div className="absolute -top-10 -right-10 w-24 h-24 rounded-full bg-cyan-500/10 blur-xl" />
@@ -94,6 +94,6 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
           </button>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Send, Mic, MicOff, Bot, Users,
   Navigation, DoorOpen, Trophy, Zap, Map, RefreshCw,
-  Clock, Target, AlertTriangle, MessageSquare, Volume2, VolumeX
+  Target, AlertTriangle, MessageSquare, Volume2, VolumeX
 } from 'lucide-react';
 import { ChatMessage, IntentType } from '../../shared/types';
 import { useApp } from '../../shared/context/AppContext';
@@ -331,6 +331,167 @@ function MessageBubbleView({
   );
 }
 
+type ChatHeaderProps = Readonly<{
+  isProcessing: boolean;
+  isListening: boolean;
+  isSupported: boolean;
+  language: string;
+  startListening: (lang: string) => void;
+  stopListening: () => void;
+}>;
+
+function ChatHeader({
+  isProcessing,
+  isListening,
+  isSupported,
+  language,
+  startListening,
+  stopListening,
+}: ChatHeaderProps) {
+  return (
+    <div
+      className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+      style={{ borderColor: 'hsl(var(--border))' }}
+    >
+      <div className="flex items-center gap-3">
+        <motion.div
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.25), rgba(168,85,247,0.25))' }}
+          animate={{ rotate: [0, 3, -3, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Bot className="w-5 h-5" style={{ color: '#06b6d4' }} />
+        </motion.div>
+        <div>
+          <h2 className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>Smart Guide AI</h2>
+          <p className="text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>
+            {isProcessing ? 'Thinking…' : 'FIFA Stadium Assistant'}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {isSupported && (
+          <motion.button
+            onClick={isListening ? stopListening : () => startListening(language)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl border transition-all"
+            style={{
+              background: isListening ? 'rgba(239,68,68,0.1)' : 'hsl(var(--elevated))',
+              borderColor: isListening ? 'rgba(239,68,68,0.3)' : 'hsl(var(--border))',
+              color: isListening ? '#ef4444' : 'hsl(var(--muted))',
+            }}
+            whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+            aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </motion.button>
+        )}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border"
+          style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          {' '}Live
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ChatInputProps = Readonly<{
+  input: string;
+  setInput: (val: string) => void;
+  isProcessing: boolean;
+  isListening: boolean;
+  isSupported: boolean;
+  language: string;
+  transcript: string;
+  startListening: (lang: string) => void;
+  stopListening: () => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+}>;
+
+function ChatInput({
+  input,
+  setInput,
+  isProcessing,
+  isListening,
+  isSupported,
+  language,
+  transcript,
+  startListening,
+  stopListening,
+  handleSubmit,
+  inputRef,
+}: ChatInputProps) {
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="px-4 py-3 border-t flex-shrink-0"
+      style={{ borderColor: 'hsl(var(--border))' }}
+    >
+      <div className="flex gap-2 items-center">
+        <div className="flex-1 relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            placeholder={isListening ? 'Listening…' : 'Ask about stadium, crowd, food, navigation...'}
+            className="input-field pr-3"
+            aria-label="Chat message input"
+            disabled={isProcessing}
+            style={{ paddingRight: '0.75rem' }}
+          />
+        </div>
+
+        {isSupported && (
+          <motion.button
+            type="button"
+            onClick={isListening ? stopListening : () => startListening(language)}
+            className="w-10 h-10 flex items-center justify-center rounded-xl border transition-all flex-shrink-0"
+            style={{
+              background: isListening ? 'rgba(239,68,68,0.1)' : 'hsl(var(--elevated))',
+              borderColor: isListening ? 'rgba(239,68,68,0.3)' : 'hsl(var(--border))',
+              color: isListening ? '#ef4444' : 'hsl(var(--muted))',
+            }}
+            whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.93 }}
+            aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+          >
+            {isListening ? (
+              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }}>
+                <MicOff className="w-4 h-4" />
+              </motion.div>
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
+          </motion.button>
+        )}
+
+        <motion.button
+          type="submit"
+          disabled={isProcessing || (!input.trim() && !transcript)}
+          className="w-10 h-10 flex items-center justify-center rounded-xl flex-shrink-0 transition-all"
+          style={{
+            background: isProcessing || (!input.trim() && !transcript) ? 'hsl(var(--elevated))' : 'hsl(var(--primary))',
+            color: isProcessing || (!input.trim() && !transcript) ? 'hsl(var(--muted-fg))' : 'white',
+            border: '1px solid transparent',
+            opacity: isProcessing || (!input.trim() && !transcript) ? 0.5 : 1,
+          }}
+          whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.93 }}
+          aria-label="Send message"
+        >
+          <motion.div
+            animate={{ rotate: isProcessing ? 360 : 0 }}
+            transition={{ duration: 1, repeat: isProcessing ? Infinity : 0, ease: 'linear' }}
+          >
+            <Send className="w-4 h-4" />
+          </motion.div>
+        </motion.button>
+      </div>
+    </form>
+  );
+}
+
 export function ChatWindow({ currentZoneId }: Readonly<{ currentZoneId?: string | null }>) {
   const { state } = useApp();
   const [input, setInput]                   = useState('');
@@ -385,52 +546,14 @@ export function ChatWindow({ currentZoneId }: Readonly<{ currentZoneId?: string 
         borderRadius: 20,
       }}
     >
-      {/* ── Header ────────────────────────────────────────────── */}
-      <div
-        className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
-        style={{ borderColor: 'hsl(var(--border))' }}
-      >
-        <div className="flex items-center gap-3">
-          <motion.div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.25), rgba(168,85,247,0.25))' }}
-            animate={{ rotate: [0, 3, -3, 0] }}
-            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <Bot className="w-5 h-5" style={{ color: '#06b6d4' }} />
-          </motion.div>
-          <div>
-            <h2 className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>Smart Guide AI</h2>
-            <p className="text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>
-              {isProcessing ? 'Thinking…' : 'FIFA Stadium Assistant'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {isSupported && (
-            <motion.button
-              onClick={isListening ? stopListening : () => startListening(state.user.language)}
-              className="w-9 h-9 flex items-center justify-center rounded-xl border transition-all"
-              style={{
-                background: isListening ? 'rgba(239,68,68,0.1)' : 'hsl(var(--elevated))',
-                borderColor: isListening ? 'rgba(239,68,68,0.3)' : 'hsl(var(--border))',
-                color: isListening ? '#ef4444' : 'hsl(var(--muted))',
-              }}
-              whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
-              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
-            >
-              {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            </motion.button>
-          )}
-          {/* Live indicator */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium border"
-            style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {' '}Live
-          </div>
-        </div>
-      </div>
+      <ChatHeader
+        isProcessing={isProcessing}
+        isListening={isListening}
+        isSupported={isSupported}
+        language={state.user.language}
+        startListening={startListening}
+        stopListening={stopListening}
+      />
 
       {/* ── Messages ─────────────────────────────────────────── */}
       <div
@@ -496,72 +619,19 @@ export function ChatWindow({ currentZoneId }: Readonly<{ currentZoneId?: string 
         )}
       </AnimatePresence>
 
-      {/* ── Input bar ────────────────────────────────────────── */}
-      <form
-        onSubmit={handleSubmit}
-        className="px-4 py-3 border-t flex-shrink-0"
-        style={{ borderColor: 'hsl(var(--border))' }}
-      >
-        <div className="flex gap-2 items-center">
-          <div className="flex-1 relative">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder={isListening ? 'Listening…' : 'Ask about stadium, crowd, food, navigation...'}
-              className="input-field pr-3"
-              aria-label="Chat message input"
-              disabled={isProcessing}
-              style={{ paddingRight: '0.75rem' }}
-            />
-          </div>
-
-          {isSupported && (
-            <motion.button
-              type="button"
-              onClick={isListening ? stopListening : () => startListening(state.user.language)}
-              className="w-10 h-10 flex items-center justify-center rounded-xl border transition-all flex-shrink-0"
-              style={{
-                background: isListening ? 'rgba(239,68,68,0.1)' : 'hsl(var(--elevated))',
-                borderColor: isListening ? 'rgba(239,68,68,0.3)' : 'hsl(var(--border))',
-                color: isListening ? '#ef4444' : 'hsl(var(--muted))',
-              }}
-              whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.93 }}
-              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
-            >
-              {isListening ? (
-                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }}>
-                  <MicOff className="w-4 h-4" />
-                </motion.div>
-              ) : (
-                <Mic className="w-4 h-4" />
-              )}
-            </motion.button>
-          )}
-
-          <motion.button
-            type="submit"
-            disabled={isProcessing || (!input.trim() && !transcript)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl flex-shrink-0 transition-all"
-            style={{
-              background: isProcessing || (!input.trim() && !transcript) ? 'hsl(var(--elevated))' : 'hsl(var(--primary))',
-              color: isProcessing || (!input.trim() && !transcript) ? 'hsl(var(--muted-fg))' : 'white',
-              border: '1px solid transparent',
-              opacity: isProcessing || (!input.trim() && !transcript) ? 0.5 : 1,
-            }}
-            whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.93 }}
-            aria-label="Send message"
-          >
-            <motion.div
-              animate={{ rotate: isProcessing ? 360 : 0 }}
-              transition={{ duration: 1, repeat: isProcessing ? Infinity : 0, ease: 'linear' }}
-            >
-              <Send className="w-4 h-4" />
-            </motion.div>
-          </motion.button>
-        </div>
-      </form>
+      <ChatInput
+        input={input}
+        setInput={setInput}
+        isProcessing={isProcessing}
+        isListening={isListening}
+        isSupported={isSupported}
+        language={state.user.language}
+        transcript={transcript}
+        startListening={startListening}
+        stopListening={stopListening}
+        handleSubmit={handleSubmit}
+        inputRef={inputRef}
+      />
     </div>
   );
 }

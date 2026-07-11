@@ -60,6 +60,41 @@ class NavigationEngine:
 
         return weight
 
+    def _is_zone_passable(self, zone: str, target_zone: str, start_zone: str, congested_zones: set[str]) -> bool:
+        """
+        Determines if a zone is passable during Dijkstra search.
+        Congested zones are impassable unless they are the source or destination.
+        """
+        if zone in congested_zones and zone != start_zone and zone != target_zone:
+            return False
+        return True
+
+    def _update_neighbor(
+        self,
+        current_zone: str,
+        neighbor: str,
+        current_dist: float,
+        distances: dict[str, float],
+        previous: dict[str, str | None],
+        pq: list,
+        zone_locations: dict,
+        crowd_map: dict,
+        accessibility_mode: bool,
+        accessible_zones: set[str]
+    ) -> None:
+        """
+        Updates neighbor distances and priority queue weights.
+        """
+        weight = self._get_edge_weight(
+            current_zone, neighbor, zone_locations,
+            crowd_map, accessibility_mode, accessible_zones
+        )
+        new_dist = current_dist + weight
+        if new_dist < distances[neighbor]:
+            distances[neighbor] = new_dist
+            previous[neighbor] = current_zone
+            heapq.heappush(pq, (new_dist, neighbor))
+
     def _run_dijkstra(
         self,
         from_zone: str,
@@ -75,9 +110,9 @@ class NavigationEngine:
         Runs Dijkstra shortest path search algorithm over zone graphs, taking accessibility,
         congestion status, and physical coordinates distance weights into calculations.
         """
-        distances = {zone: float("inf") for zone in zone_graph}
+        distances = dict.fromkeys(zone_graph, float("inf"))
         distances[from_zone] = 0.0
-        previous = {zone: None for zone in zone_graph}
+        previous = dict.fromkeys(zone_graph)
         pq = [(0.0, from_zone)]
         visited = set()
 
@@ -98,23 +133,17 @@ class NavigationEngine:
             if current_zone == to_zone:
                 break
 
-            if current_zone in congested_zones and current_zone != from_zone:
+            if not self._is_zone_passable(current_zone, to_zone, from_zone, congested_zones):
                 continue
 
             for neighbor in zone_graph.get(current_zone, []):
-                if neighbor in congested_zones and neighbor != to_zone:
+                if not self._is_zone_passable(neighbor, to_zone, from_zone, congested_zones):
                     continue
 
-                weight = self._get_edge_weight(
-                    current_zone, neighbor, zone_locations,
-                    crowd_map, accessibility_mode, accessible_zones
+                self._update_neighbor(
+                    current_zone, neighbor, current_dist, distances, previous,
+                    pq, zone_locations, crowd_map, accessibility_mode, accessible_zones
                 )
-
-                new_dist = current_dist + weight
-                if new_dist < distances[neighbor]:
-                    distances[neighbor] = new_dist
-                    previous[neighbor] = current_zone
-                    heapq.heappush(pq, (new_dist, neighbor))
 
         return distances, previous
 

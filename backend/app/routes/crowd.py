@@ -1,6 +1,5 @@
 import asyncio
 import logging
-
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from app.models import ApiResponse, CrowdSnapshot, Alert, Recommendation
 from app.services.crowd import crowd_engine
@@ -10,6 +9,8 @@ from app.utils.validators import validate_zone_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+INVALID_STADIUM_ID = "Invalid stadium ID"
 
 
 @router.get("/", dependencies=[Depends(rate_limit_dependency)])
@@ -24,13 +25,14 @@ async def get_crowd_data(
     try:
         clean_zone = validate_zone_id(zone_id) if zone_id else None
         if stadium_id not in ["metlife", "sofi", "azteca"]:
-            raise ValueError("Invalid stadium ID")
+            raise ValueError(INVALID_STADIUM_ID)
 
-        logger.info("Fetching crowd data for zone_id=%s, stadium_id=%s", clean_zone, stadium_id)
+        clean_stadium = stadium_id
+        logger.info("Fetching crowd data for zone_id=%s, stadium_id=%s", clean_zone, clean_stadium)
         if clean_zone:
-            snapshots = [crowd_engine.get_snapshot(clean_zone, stadium_id)]
+            snapshots = [crowd_engine.get_snapshot(clean_zone, clean_stadium)]
         else:
-            snapshots = crowd_engine.get_all_snapshots(stadium_id)
+            snapshots = crowd_engine.get_all_snapshots(clean_stadium)
         return ApiResponse(success=True, data=snapshots)
     except ValueError:
         logger.exception("Error fetching zone snapshot")
@@ -43,11 +45,17 @@ async def get_alerts(stadium_id: str = "metlife") -> ApiResponse[list[Alert]]:
     Fetch active warning/critical stadium alerts.
     Rate-limited.
     """
-    if stadium_id not in ["metlife", "sofi", "azteca"]:
-        raise ValueError("Invalid stadium ID")
-    logger.info("Fetching alerts for stadium_id=%s", stadium_id)
-    alerts = crowd_engine.get_alerts(stadium_id)
-    return ApiResponse(success=True, data=alerts)
+    try:
+        if stadium_id not in ["metlife", "sofi", "azteca"]:
+            raise ValueError(INVALID_STADIUM_ID)
+
+        clean_stadium = stadium_id
+        logger.info("Fetching alerts for stadium_id=%s", clean_stadium)
+        alerts = crowd_engine.get_alerts(clean_stadium)
+        return ApiResponse(success=True, data=alerts)
+    except ValueError as e:
+        logger.exception("Error fetching alerts")
+        return ApiResponse(success=False, data=[], error=str(e))
 
 
 @router.get("/recommendations", dependencies=[Depends(rate_limit_dependency)])
@@ -61,11 +69,12 @@ async def get_recommendations(
     """
     clean_zone = validate_zone_id(zone_id) if zone_id else None
     if stadium_id not in ["metlife", "sofi", "azteca"]:
-        raise ValueError("Invalid stadium ID")
+        raise ValueError(INVALID_STADIUM_ID)
 
-    logger.info("Fetching recommendations for zone_id=%s, stadium_id=%s", clean_zone, stadium_id)
-    snapshots = crowd_engine.get_all_snapshots(stadium_id)
-    recs = recommendation_engine.generate(snapshots, clean_zone, stadium_id)
+    clean_stadium = stadium_id
+    logger.info("Fetching recommendations for zone_id=%s, stadium_id=%s", clean_zone, clean_stadium)
+    snapshots = crowd_engine.get_all_snapshots(clean_stadium)
+    recs = recommendation_engine.generate(snapshots, clean_zone, clean_stadium)
     return ApiResponse(success=True, data=recs)
 
 
@@ -106,11 +115,59 @@ async def _validate_ws(websocket: WebSocket, stadium_id: str) -> bool:
 
     if stadium_id not in ["metlife", "sofi", "azteca"]:
         logger.warning("Rejected WebSocket connection: invalid stadium ID")
-        await websocket.close(code=4004, reason="Invalid stadium ID")
+        await websocket.close(code=4004, reason=INVALID_STADIUM_ID)
         return False
 
-    logger.info("WebSocket handshake accepted for stadium_id=%s", stadium_id)
+    clean_stadium = stadium_id
+    logger.info("WebSocket handshake accepted for stadium_id=%s", clean_stadium)
     return True
+
+
+class WebSocketHandler:
+    """
+    Manages connection lifecycle state and loop handlers for an active WebSocket client.
+    """
+    def __init__(self, websocket: WebSocket, stadium_id: str):
+        self.websocket = websocket
+        self.stadium_id = stadium_id
+        self.current_zone_id = None
+
+    async def receive_loop(self):
+        try:
+            while True:
+                data = await self.websocket.receive_json()
+                if isinstance(data, dict):
+                    if "current_zone_id" in data:
+                        self.current_zone_id = validate_zone_id(data["current_zone_id"])
+                    if "minutes" in data:
+                        crowd_engine.set_match_time(int(data["minutes"]))
+        except Exception as e:
+            logger.info("WebSocket connection read stream ended: %s", str(e))
+
+    async def send_loop(self):
+        receive_task = asyncio.create_task(self.receive_loop())
+        try:
+            while True:
+                snapshots = crowd_engine.get_all_snapshots(self.stadium_id)
+                alerts = crowd_engine.get_alerts(self.stadium_id)
+                recs = recommendation_engine.generate(snapshots, self.current_zone_id, self.stadium_id)
+
+                payload = {
+                    "crowd": [snap.model_dump() for snap in snapshots],
+                    "alerts": [alert.model_dump() for alert in alerts],
+                    "recommendations": [rec.model_dump() for rec in recs],
+                    "match_time": crowd_engine.match_time_minutes
+                }
+                try:
+                    await self.websocket.send_json(payload)
+                except (WebSocketDisconnect, RuntimeError) as e:
+                    logger.info("WebSocket connection write stream ended: %s", str(e))
+                    break
+                await asyncio.sleep(3)
+        except WebSocketDisconnect:
+            logger.info("WebSocket subscriber disconnected")
+        finally:
+            receive_task.cancel()
 
 
 @router.websocket("/ws/{stadium_id}")
@@ -122,42 +179,5 @@ async def websocket_endpoint(websocket: WebSocket, stadium_id: str) -> None:
         return
 
     await websocket.accept()
-    current_zone_id = None
-
-    async def receive_messages():
-        nonlocal current_zone_id
-        try:
-            while True:
-                data = await websocket.receive_json()
-                if isinstance(data, dict):
-                    if "current_zone_id" in data:
-                        current_zone_id = validate_zone_id(data["current_zone_id"])
-                    if "minutes" in data:
-                        crowd_engine.set_match_time(int(data["minutes"]))
-        except Exception as e:
-            logger.info("WebSocket connection read stream ended: %s", str(e))
-
-    receive_task = asyncio.create_task(receive_messages())
-
-    try:
-        while True:
-            snapshots = crowd_engine.get_all_snapshots(stadium_id)
-            alerts = crowd_engine.get_alerts(stadium_id)
-            recs = recommendation_engine.generate(snapshots, current_zone_id, stadium_id)
-
-            payload = {
-                "crowd": [snap.model_dump() for snap in snapshots],
-                "alerts": [alert.model_dump() for alert in alerts],
-                "recommendations": [rec.model_dump() for rec in recs],
-                "match_time": crowd_engine.match_time_minutes
-            }
-            try:
-                await websocket.send_json(payload)
-            except (WebSocketDisconnect, RuntimeError) as e:
-                logger.info("WebSocket connection write stream ended: %s", str(e))
-                break
-            await asyncio.sleep(3)
-    except WebSocketDisconnect:
-        logger.info("WebSocket subscriber disconnected")
-    finally:
-        receive_task.cancel()
+    handler = WebSocketHandler(websocket, stadium_id)
+    await handler.send_loop()

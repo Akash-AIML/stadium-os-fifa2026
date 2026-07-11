@@ -57,7 +57,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 let globalSocket: WebSocket | null = null;
 let lastStadiumId: string | null = null;
 
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [state, dispatch] = useReducer(appReducer, initialState);
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef(state);
@@ -80,7 +80,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (globalSocket) {
       try {
         globalSocket.close();
-      } catch (e) {}
+      } catch (e) {
+        // Ignored: cleanup socket if state is invalid or already closed
+      }
     }
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -145,7 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value: AppContextType = {
+  const contextValue = React.useMemo<AppContextType>(() => ({
     state,
     setUser: (user) => dispatch({ type: 'SET_USER', payload: user }),
     setCurrentZone: (zoneId) => dispatch({ type: 'SET_CURRENT_ZONE', payload: zoneId }),
@@ -156,9 +158,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSimulationTime: (time) => dispatch({ type: 'SET_SIMULATION_TIME', payload: time }),
     toggleDevMode: () => dispatch({ type: 'TOGGLE_DEV_MODE' }),
     sendWSMessage,
-  };
+  }), [state, sendWSMessage]);
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
 }
 
 export function useApp() {

@@ -29,17 +29,21 @@ async def get_route(
         if stadium_id not in ["metlife", "sofi", "azteca"]:
             raise ValueError("Invalid stadium ID")
 
+        clean_from = "".join(c for c in from_zone_clean if c.isalnum() or c == "_")
+        clean_to = "".join(c for c in to_zone_clean if c.isalnum() or c == "_")
+        clean_stadium = stadium_id
+
         logger.info(
             "Dijkstra GET route request: from=%s to=%s (stadium=%s)",
-            from_zone_clean, to_zone_clean, stadium_id
+            clean_from, clean_to, clean_stadium
         )
 
-        crowd_data = crowd_engine.get_all_snapshots(stadium_id)
+        crowd_data = crowd_engine.get_all_snapshots(clean_stadium)
         route = navigation_engine.find_route(
-            from_zone_clean, to_zone_clean, crowd_data, stadium_id, accessibility_mode
+            from_zone_clean, to_zone_clean, crowd_data, clean_stadium, accessibility_mode
         )
         if route is None:
-            logger.warning("No viable path found between %s and %s", from_zone_clean, to_zone_clean)
+            logger.warning("No viable path found between %s and %s", clean_from, clean_to)
             return ApiResponse(success=False, data=None, error="No viable route found")
         return ApiResponse(success=True, data=route)
     except (ValueError, NavigationError) as e:

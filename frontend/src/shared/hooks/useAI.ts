@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { sendChatMessage } from '../../services/api';
 import { ChatMessage, IntentType } from '../../shared/types';
 import { useApp } from '../context/AppContext';
@@ -84,11 +84,12 @@ export function useAI() {
       const is429 = error?.message?.includes('429') || error?.message?.includes('Rate limit') || error?.message?.includes('rate limit');
       const isOffline = error?.message?.includes('404') || error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError');
 
-      const fallbackContent = is429
-        ? 'The AI assistant is temporarily busy (rate limit reached). Please wait a moment and try again. In the meantime, use the interactive map to navigate zones and the crowd dashboard for real-time density updates.'
-        : isOffline
-        ? 'The AI backend is currently offline. You can still use the interactive SVG map to navigate zones, view crowd density in the dashboard, and use the timeline simulator. The AI assistant will be available once the backend is connected.'
-        : 'Sorry, I encountered an error. Please try again.';
+      let fallbackContent = 'Sorry, I encountered an error. Please try again.';
+      if (is429) {
+        fallbackContent = 'The AI assistant is temporarily busy (rate limit reached). Please wait a moment and try again. In the meantime, use the interactive map to navigate zones and the crowd dashboard for real-time density updates.';
+      } else if (isOffline) {
+        fallbackContent = 'The AI backend is currently offline. You can still use the interactive SVG map to navigate zones, view crowd density in the dashboard, and use the timeline simulator. The AI assistant will be available once the backend is connected.';
+      }
 
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,

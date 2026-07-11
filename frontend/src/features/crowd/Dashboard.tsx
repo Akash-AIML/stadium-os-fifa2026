@@ -22,6 +22,18 @@ const STATUS_COLORS: Record<string, string> = {
   [ZoneStatus.CONGESTED]:'#ef4444',
 };
 
+const METRIC_LABELS: Record<MetricType, string> = {
+  density: 'Density',
+  queue: 'Queue Time',
+  flow: 'Crowd Flow',
+};
+
+const BOTTLENECK_LABELS: Record<MetricType, string> = {
+  density: 'Top Congested Sections',
+  queue: 'Longest Queue Bottlenecks',
+  flow: 'Stalled Flow Points',
+};
+
 function getQueueColor(queueTime: number): string {
   if (queueTime > 20) return '#ef4444';
   if (queueTime > 10) return '#f97316';
@@ -198,7 +210,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
             whileTap={{ scale: 0.98 }}
             aria-pressed={selectedMetric === m}
           >
-            {m === 'density' ? 'Density' : m === 'queue' ? 'Queue Time' : 'Crowd Flow'}
+            {METRIC_LABELS[m]}
           </motion.button>
         ))}
       </div>
@@ -232,7 +244,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
           <div className="flex items-center gap-1.5 mb-0.5">
             <Activity className="w-3 h-3 text-cyan-400" />
             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-              {selectedMetric === 'density' ? 'Top Congested Sections' : selectedMetric === 'queue' ? 'Longest Queue Bottlenecks' : 'Stalled Flow Points'}
+              {BOTTLENECK_LABELS[selectedMetric]}
             </span>
           </div>
 

@@ -6,7 +6,7 @@ interface ToastSystemProps {
   alerts: Alert[];
 }
 
-export function ToastSystem({ alerts }: ToastSystemProps) {
+export function ToastSystem({ alerts }: Readonly<ToastSystemProps>) {
   const [activeToasts, setActiveToasts] = useState<Alert[]>([]);
 
   useEffect(() => {

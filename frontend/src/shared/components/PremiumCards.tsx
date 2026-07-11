@@ -29,8 +29,7 @@ const STATUS_COLORS: Record<ZoneStatus, string> = {
 const TREND_ICONS: Record<string, LucideIcon> = { up: TrendingUp, down: TrendingDown, stable: Minus };
 const TREND_COLORS = { up: '#ef4444', down: '#10b981', stable: '#f59e0b' };
 
-export function LiveCard({ title, value, unit = '', trend = 'stable', subtitle, icon = '📊', status, history = [], onClick }: LiveCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
+export function LiveCard({ title, value, unit = '', trend = 'stable', subtitle, icon = '📊', status, history = [], onClick }: Readonly<LiveCardProps>) {
   const sparklineRef = useRef<SVGPolylineElement>(null);
 
   useEffect(() => {
@@ -52,11 +51,11 @@ export function LiveCard({ title, value, unit = '', trend = 'stable', subtitle, 
     }
   }, [history]);
 
+  const TrendIconComponent = TREND_ICONS[trend];
+
   return (
     <motion.div
       className="glass-panel-gradient gradient-border-cyan p-5 relative overflow-hidden cursor-pointer hover-lift"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
       whileHover={{ y: -4, scale: 1.01 }}
       whileTap={{ scale: 0.98 }}
@@ -91,9 +90,9 @@ export function LiveCard({ title, value, unit = '', trend = 'stable', subtitle, 
           >
             {status || 'Live'}
           </span>
-          {(() => { const TI = TREND_ICONS[trend]; return (
-            <TI className="w-3 h-3" style={{ color: TREND_COLORS[trend] }} />
-          ); })()}
+          {TrendIconComponent && (
+            <TrendIconComponent className="w-3 h-3" style={{ color: TREND_COLORS[trend] }} />
+          )}
         </div>
       </div>
 
@@ -131,9 +130,8 @@ interface ExpandableCardProps {
   defaultExpanded?: boolean;
 }
 
-export function ExpandableCard({ title, icon, status, children, summary, defaultExpanded = false }: ExpandableCardProps) {
+export function ExpandableCard({ title, icon, status, children, summary, defaultExpanded = false }: Readonly<ExpandableCardProps>) {
   const [expanded, setExpanded] = useState(defaultExpanded);
-  const contentRef = useRef<HTMLDivElement>(null);
 
   return (
     <motion.div
@@ -211,13 +209,14 @@ interface RecommendationCardProps {
   onAction?: (action: string) => void;
 }
 
-export function RecommendationCard({ recommendation, onAction }: RecommendationCardProps) {
+export function RecommendationCard({ recommendation, onAction }: Readonly<RecommendationCardProps>) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), Math.random() * 300);
+    const staggerDelay = ((recommendation.id.codePointAt(0) ?? 0) % 5) * 60;
+    const timer = setTimeout(() => setVisible(true), staggerDelay);
     return () => clearTimeout(timer);
-  }, []);
+  }, [recommendation.id]);
 
   const priorityColors: Record<string, { bg: string; text: string; border: string }> = {
     low: { bg: 'rgba(59,130,246,0.1)', text: '#3b82f6', border: 'rgba(59,130,246,0.3)' },
@@ -227,6 +226,7 @@ export function RecommendationCard({ recommendation, onAction }: RecommendationC
   };
 
   const colors = priorityColors[recommendation.priority] || priorityColors.low;
+  const TypeIcon = TYPE_ICONS[recommendation.type] || MapPin;
 
   return (
     <motion.div
@@ -241,17 +241,15 @@ export function RecommendationCard({ recommendation, onAction }: RecommendationC
       
       <div className="p-4 relative z-10">
         <div className="flex items-start gap-3">
-          {(() => { const TypeIcon = TYPE_ICONS[recommendation.type] || MapPin; return (
-            <motion.div
-              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: `${colors.bg}`, border: `1px solid ${colors.border}` }}
-              initial={{ scale: 0, rotate: -90 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: 'spring', delay: 0.2 }}
-            >
-              <TypeIcon className="w-4 h-4" style={{ color: colors.text }} />
-            </motion.div>
-          ); })()}
+          <motion.div
+            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: colors.bg, border: `1px solid ${colors.border}` }}
+            initial={{ scale: 0, rotate: -90 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', delay: 0.2 }}
+          >
+            <TypeIcon className="w-4 h-4" style={{ color: colors.text }} />
+          </motion.div>
           <div className="flex-1">
             <p className="font-semibold text-slate-100 leading-relaxed">{recommendation.message}</p>
             <div className="flex flex-wrap items-center gap-2 mt-3 text-[10px]">
@@ -292,7 +290,7 @@ interface FloatingWidgetProps {
   onClick?: () => void;
 }
 
-export function FloatingWidget({ icon: Icon, label, value, trend = 'stable', color = 'cyan', onClick }: FloatingWidgetProps) {
+export function FloatingWidget({ icon: Icon, label, value, trend = 'stable', color = 'cyan', onClick }: Readonly<FloatingWidgetProps>) {
   const COLORS = {
     cyan:    { bg: 'rgba(6,182,212,0.12)',   text: '#06b6d4', border: 'rgba(6,182,212,0.25)'   },
     violet:  { bg: 'rgba(168,85,247,0.12)',  text: '#a855f7', border: 'rgba(168,85,247,0.25)'  },
@@ -300,7 +298,7 @@ export function FloatingWidget({ icon: Icon, label, value, trend = 'stable', col
     amber:   { bg: 'rgba(245,158,11,0.12)',  text: '#f59e0b', border: 'rgba(245,158,11,0.25)'  },
   };
   const c = COLORS[color];
-  const TI = TREND_ICONS[trend];
+  const TrendIconComponent = TREND_ICONS[trend];
 
   return (
     <motion.button
@@ -325,7 +323,9 @@ export function FloatingWidget({ icon: Icon, label, value, trend = 'stable', col
         <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'hsl(var(--muted-fg))' }}>{label}</p>
         <p className="text-sm font-bold" style={{ color: 'hsl(var(--fg))' }}>{value}</p>
       </div>
-      <TI className="w-3.5 h-3.5 flex-shrink-0" style={{ color: TREND_COLORS[trend] }} />
+      {TrendIconComponent && (
+        <TrendIconComponent className="w-3.5 h-3.5 flex-shrink-0" style={{ color: TREND_COLORS[trend] }} />
+      )}
     </motion.button>
   );
 }
@@ -341,7 +341,7 @@ interface CircularProgressProps {
   animate?: boolean;
 }
 
-export function CircularProgress({ value, max = 100, size = 120, strokeWidth = 8, color = 'cyan', label, subLabel, animate = true }: CircularProgressProps) {
+export function CircularProgress({ value, max = 100, size = 120, strokeWidth = 8, color = 'cyan', label, subLabel, animate = true }: Readonly<CircularProgressProps>) {
   const colors = {
     cyan: '#06b6d4',
     violet: '#a855f7',

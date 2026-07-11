@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { fetchRoute } from '../../services/api';
 import { STADIUM_ZONES_METADATA } from '../utils/zones';
@@ -22,7 +22,7 @@ interface NavigationState {
 }
 
 export function useNavigation() {
-  const { state, setCurrentZone } = useApp();
+  const { state } = useApp();
   const [navigationState, setNavigationState] = useState<NavigationState>({
     isNavigating: false,
     currentRoute: null,
@@ -42,16 +42,18 @@ export function useNavigation() {
             const meta = STADIUM_ZONES_METADATA[zoneId];
             const crowdData = state.crowd_data.find(c => c.zone_id === zoneId);
             if (!meta) return null;
+            let instruction = `Continue to ${meta.label}`;
+            if (index === 0) {
+              instruction = `Start at ${meta.label}`;
+            } else if (index === routeData.path.length - 1) {
+              instruction = `Arrive at ${meta.label}`;
+            }
             return {
               zoneId,
               label: meta.label,
               location: meta.location,
-              instruction: index === 0 
-                ? `Start at ${meta.label}` 
-                : index === routeData.path.length - 1
-                  ? `Arrive at ${meta.label}`
-                  : `Continue to ${meta.label}`,
-              distance: index > 0 ? 50 + Math.random() * 100 : 0,
+              instruction,
+              distance: index > 0 ? 50 + ((zoneId.codePointAt(0) ?? 0) % 10) * 10 : 0,
               crowdLevel: crowdData?.density || 0,
             };
           })

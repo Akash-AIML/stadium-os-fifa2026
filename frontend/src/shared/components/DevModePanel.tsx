@@ -3,6 +3,13 @@ import { useApp } from '../context/AppContext';
 import { Terminal } from 'lucide-react';
 import { STADIUMS_CONFIG } from '../utils/stadiums';
 
+function getTimelinePhase(minutes: number): string {
+  if (minutes >= 90) return 'Post-match';
+  if (minutes >= 60) return 'Second Half';
+  if (minutes >= 45) return 'Halftime';
+  return 'First Half';
+}
+
 export function DevModePanel() {
   const { state, toggleDevMode } = useApp();
 
@@ -13,7 +20,7 @@ export function DevModePanel() {
   const config = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
 
   const elapsed_minutes = state.simulation_time;
-  const timeline_phase = elapsed_minutes >= 90 ? 'Post-match' : elapsed_minutes >= 60 ? 'Second Half' : elapsed_minutes >= 45 ? 'Halftime' : 'First Half';
+  const timeline_phase = getTimelinePhase(elapsed_minutes);
 
   return (
     <div
