@@ -463,32 +463,36 @@ stadium-os-fifa2026/
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx              # Root layout + AI→Map sync logic
+│   │   ├── App.tsx              # Root shell orchestrator (slim, ~160 lines)
 │   │   ├── index.css            # HSL design tokens + glassmorphic theme
 │   │   ├── features/
+│   │   │   ├── app/             # Main layout components (HeroScreen, MainWorkspace, MobileChatDrawer)
 │   │   │   ├── chat/
-│   │   │   │   └── ChatWindow.tsx    # AI chat UI, voice input, TTS buttons
+│   │   │   │   ├── ChatWindow.tsx # Chat interface orchestrator (slim, ~115 lines)
+│   │   │   │   └── components/  # Extracted chat sub-components (WelcomeView, MessageBubbleView, etc.)
 │   │   │   ├── navigation/
-│   │   │   │   └── StadiumMap.tsx    # SVG map, route overlays, amenity icons
+│   │   │   │   ├── StadiumMap.tsx # SVG map renderer (slim, ~240 lines)
+│   │   │   │   └── components/  # Map background, markers, zoom controls, tooltips
 │   │   │   └── crowd/
 │   │   │       └── Dashboard.tsx     # Crowd gauges, alerts, leaderboard
 │   │   ├── shared/
 │   │   │   ├── components/
-│   │   │   │   ├── TopNavbar.tsx     # Stadium selector, lang picker, a11y toggle
+│   │   │   │   ├── TopNavbar.tsx     # Header bar orchestrator (slim, ~480 lines)
+│   │   │   │   ├── CommandPalette.tsx# Extracted global search command palette
 │   │   │   │   ├── TimelineSlider.tsx# Match simulation timeline control
 │   │   │   │   └── DevModePanel.tsx  # Decision telemetry inspector panel
 │   │   │   ├── hooks/
-│   │   │   │   ├── useAI.ts          # Chat message state + API calls
-│   │   │   │   ├── useCrowdData.ts   # Reads crowd state from AppContext
+│   │   │   │   ├── useRouteCache.ts  # Dijkstra path cache & navigation hook
+│   │   │   │   ├── useAiMapSync.ts   # Debounced AI-to-map syncing hook
 │   │   │   │   ├── useTextToSpeech.ts# Web Speech SpeechSynthesis wrapper
 │   │   │   │   └── useTranslation.ts # 10-language local dictionary hook
 │   │   │   ├── context/
 │   │   │   │   └── AppContext.tsx    # Singleton global state + WebSocket root
 │   │   │   └── utils/
-│   │   │       └── stadiums.ts      # Frontend venue zone configs & coordinates
+│   │   │       └── stadiums.ts      # Venue configs, layout metrics, coordinates
 │   │   └── services/
-│   │       └── api.ts               # Fetch/Axios API client
-│   ├── tests/                       # 8 Vitest component tests
+│   │       └── api.ts               # Axios API endpoints wrapper client
+│   ├── tests/                       # 22 Vitest unit tests (5 test suites)
 │   └── package.json
 └── vercel.json                  # Unified Vercel monorepo configuration
 ```
