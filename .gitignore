@@ -23,6 +23,8 @@ npm-debug.log*
 # Frontend
 frontend/dist/
 frontend/build/
+*.tsbuildinfo
+
 
 # IDE
 .vscode/
@@ -36,3 +38,8 @@ Thumbs.db
 
 # Logs
 *.log
+# files
+
+issues.json
+sonar-issues.json
+code-quality-improvement-plan.md

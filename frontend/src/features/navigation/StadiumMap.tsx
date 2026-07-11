@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Layers, Users, Timer, TrendingUp, TrendingDown, Minus, Map, Navigation, Utensils, DoorOpen, Activity } from 'lucide-react';
-import { Zone, ZoneStatus, CrowdZone } from '../../shared/types';
-import { STADIUM_ZONES_METADATA as DEFAULT_STADIUM_ZONES } from '../../shared/utils/zones';
+import { ZoomIn, ZoomOut, Maximize2, Layers, Users, Timer, TrendingUp, TrendingDown, Minus, Map as MapIcon, Navigation as NavigationIcon, Utensils, DoorOpen, Activity } from 'lucide-react';
+import { ZoneStatus, CrowdZone, Route } from '../../shared/types';
 import { STADIUMS_CONFIG } from '../../shared/utils/stadiums';
 import { useHeatMap } from '../../shared/hooks/useHeatMap';
 
@@ -10,9 +9,10 @@ interface StadiumMapProps {
   zones: CrowdZone[];
   selectedZoneId: string | null;
   onZoneClick: (zoneId: string) => void;
-  activeRoute?: any | null;
+  activeRoute?: Route | null;
   showHeatmap?: boolean;
   stadiumId?: 'metlife' | 'sofi' | 'azteca';
+  accessibleMode?: boolean;
 }
 
 // ── Zone status colors ────────────────────────────────────────────────────────
@@ -24,13 +24,31 @@ const ZONE_COLORS: Record<ZoneStatus, { fill: string; stroke: string; glow: stri
 };
 
 // ── Tooltip positioned outside SVG (DOM overlay) ──────────────────────────────
-function ZoneTooltip({ zone, meta, color }: {
+function ZoneTooltip({ zone, meta, color }: Readonly<{
   zone: CrowdZone;
-  meta: { label: string; type: string; location: [number, number]; landmark?: string };
-  color: { fill: string };
-}) {
-  const TrendIcon = zone.trend === 'up' ? TrendingUp : zone.trend === 'down' ? TrendingDown : Minus;
-  const trendColor = zone.trend === 'up' ? '#ef4444' : zone.trend === 'down' ? '#10b981' : '#f59e0b';
+  meta: { readonly label: string; readonly type: string; readonly location: readonly [number, number]; readonly landmark?: string };
+  color: { readonly fill: string };
+}>) {
+  let TrendIcon = Minus;
+  if (zone.trend === 'up') {
+    TrendIcon = TrendingUp;
+  } else if (zone.trend === 'down') {
+    TrendIcon = TrendingDown;
+  }
+
+  let trendColor = '#f59e0b';
+  if (zone.trend === 'up') {
+    trendColor = '#ef4444';
+  } else if (zone.trend === 'down') {
+    trendColor = '#10b981';
+  }
+
+  let trendText = 'Stable';
+  if (zone.trend === 'up') {
+    trendText = 'Filling up';
+  } else if (zone.trend === 'down') {
+    trendText = 'Clearing';
+  }
 
   return (
     <motion.div
@@ -74,14 +92,14 @@ function ZoneTooltip({ zone, meta, color }: {
         </div>
         <div className="flex items-center gap-1.5 col-span-2">
           <TrendIcon className="w-3 h-3" style={{ color: trendColor }} />
-          <span className="text-xs font-medium capitalize" style={{ color: trendColor }}>
-            {zone.trend === 'up' ? 'Filling up' : zone.trend === 'down' ? 'Clearing' : 'Stable'}
+          <span className="text-xs font-medium" style={{ color: trendColor }}>
+            {trendText}
           </span>
         </div>
       </div>
       {/* Status badge */}
       <div
-        className="mt-2 pt-2 border-t text-[10px] font-semibold uppercase tracking-wide text-center capitalize"
+        className="mt-2 pt-2 border-t text-[10px] font-semibold uppercase tracking-wide text-center"
         style={{ borderColor: 'var(--glass-border)', color: color.fill }}
       >
         {zone.status}
@@ -103,10 +121,10 @@ export function StadiumMap({
   onZoneClick,
   activeRoute,
   showHeatmap = false,
-  stadiumId = 'metlife'
-}: StadiumMapProps) {
+  stadiumId = 'metlife',
+  accessibleMode = false
+}: Readonly<StadiumMapProps>) {
   const [viewMode, setViewMode]           = useState<'indoor' | 'outdoor'>('indoor');
-  const [accessibleMode, setAccessibleMode] = useState(false);
   const [hoveredZone, setHoveredZone]     = useState<string | null>(null);
 
   const getZoneIcon = (type: string) => {
@@ -132,14 +150,13 @@ export function StadiumMap({
   const dragStartRef = useRef({ x: 0, y: 0 });
   const svgRef       = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { heatmapZones } = useHeatMap(zones as any);
+  const heatmapData = useHeatMap(zones);
+  const heatmapZones = heatmapData.heatmapZones;
 
   const stadiumConfig = STADIUMS_CONFIG[stadiumId] || STADIUMS_CONFIG.metlife;
   const STADIUM_ZONES_METADATA = stadiumConfig.zones;
 
   // ── Wheel zoom ────────────────────────────────────────────────
-  // Must use addEventListener with { passive: false } — React's onWheel prop
-  // registers a passive listener which cannot call e.preventDefault().
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -177,7 +194,7 @@ export function StadiumMap({
       .filter(Boolean) as [number, number][];
     if (points.length < 2) return null;
 
-    const d = `M ${points.map(p => `${p[0]} ${p[1]}`).join(' L ')}`;
+    const d = 'M ' + points.map(p => p[0] + ' ' + p[1]).join(' L ');
     const totalLen = points.reduce((sum, p, i) => {
       if (i === 0) return sum;
       const prev = points[i - 1];
@@ -211,36 +228,50 @@ export function StadiumMap({
           transition={{ opacity: { delay: 0.8 }, strokeDashoffset: { repeat: Infinity, duration: 1.5, ease: 'linear' } }}
         />
         {/* Waypoint dots */}
-        {points.map((p, i) => (
-          <motion.circle
-            key={i} cx={p[0]} cy={p[1]} r={i === 0 || i === points.length - 1 ? 6 : 4}
-            fill={i === 0 ? '#10b981' : i === points.length - 1 ? '#ef4444' : '#06b6d4'}
-            stroke="rgba(0,0,0,0.5)" strokeWidth={1.5}
-            initial={{ r: 0, opacity: 0 }}
-            animate={{ r: i === 0 || i === points.length - 1 ? 6 : 4, opacity: 1 }}
-            transition={{ delay: 0.9 + i * 0.1 }}
-          />
-        ))}
+        {points.map((p, i) => {
+          const isEndpoint = i === 0 || i === points.length - 1;
+          const radiusVal = isEndpoint ? 6 : 4;
+          let fillVal = '#06b6d4';
+          if (i === 0) {
+            fillVal = '#10b981';
+          } else if (i === points.length - 1) {
+            fillVal = '#ef4444';
+          }
+
+          return (
+            <motion.circle
+              key={`point-${p[0]}-${p[1]}`} cx={p[0]} cy={p[1]} r={radiusVal}
+              fill={fillVal}
+              stroke="rgba(0,0,0,0.5)" strokeWidth={1.5}
+              initial={{ r: 0, opacity: 0 }}
+              animate={{ r: radiusVal, opacity: 1 }}
+              transition={{ delay: 0.9 + i * 0.1 }}
+            />
+          );
+        })}
       </g>
     );
-  }, [activeRoute]);
+  }, [activeRoute, accessibleMode]);
 
   // ── Heatmap overlay ───────────────────────────────────────────
   const renderHeatmap = useCallback(() => {
     if (!heatmapVisible) return null;
     return (
       <g style={{ mixBlendMode: 'screen' }}>
-        {heatmapZones.map(zone => (
-          <motion.circle
-            key={zone.id}
-            cx={zone.location[0]} cy={zone.location[1]}
-            r={zone.radius * 1.4}
-            fill={zone.color} opacity={zone.intensity * 0.25}
-            initial={{ r: 0, opacity: 0 }}
-            animate={{ r: zone.radius * 1.4, opacity: zone.intensity * 0.25 }}
-            transition={{ duration: 0.8, delay: Math.random() * 0.3 }}
-          />
-        ))}
+        {heatmapZones.map(zone => {
+          const staggerDelay = (zone.id.charCodeAt(0) % 5) * 0.06;
+          return (
+            <motion.circle
+              key={zone.id}
+              cx={zone.location[0]} cy={zone.location[1]}
+              r={zone.radius * 1.4}
+              fill={zone.color} opacity={zone.intensity * 0.25}
+              initial={{ r: 0, opacity: 0 }}
+              animate={{ r: zone.radius * 1.4, opacity: zone.intensity * 0.25 }}
+              transition={{ duration: 0.8, delay: staggerDelay }}
+            />
+          );
+        })}
       </g>
     );
   }, [heatmapZones, heatmapVisible]);
@@ -282,7 +313,7 @@ export function StadiumMap({
           }}
           aria-pressed={viewMode === 'outdoor'}
         >
-          <Map className="w-3.5 h-3.5" />
+          <MapIcon className="w-3.5 h-3.5" />
           Outdoor Transit
         </button>
       </div>
@@ -314,7 +345,7 @@ export function StadiumMap({
           >
             <div className="flex items-start gap-2.5">
               <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-                <Navigation className="w-4 h-4 text-cyan-400 rotate-45" />
+                <NavigationIcon className="w-4 h-4 text-cyan-400 rotate-45" />
               </div>
               <div className="text-left">
                 <h4 className="text-xs font-bold text-white leading-tight">Outdoor Transit Directions</h4>
@@ -472,7 +503,7 @@ export function StadiumMap({
         {/* Pitch stripe texture */}
         {Array.from({ length: 6 }).map((_, i) => (
           <rect
-            key={i}
+            key={`stripe-${290 + i * 36.7}`}
             x="220" y={290 + i * 36.7} width="360" height="18"
             fill="rgba(16,185,129,0.015)"
           />
@@ -495,6 +526,36 @@ export function StadiumMap({
             const coords     = STADIUM_ZONES_METADATA[zone.id]?.location ?? [0, 0];
             const r          = isGate ? 18 : 15;
 
+            let scaleVal = 1;
+            if (isSelected) {
+              scaleVal = 1.2;
+            } else if (isHovered) {
+              scaleVal = 1.12;
+            }
+
+            let opacityVal = 0.06;
+            if (isSelected) {
+              opacityVal = 0.22;
+            } else if (isHovered) {
+              opacityVal = 0.16;
+            } else if (isCritical) {
+              opacityVal = 0.12;
+            }
+
+            let circleRadius = r;
+            if (isSelected) {
+              circleRadius = r + 2;
+            } else if (isHovered) {
+              circleRadius = r + 1;
+            }
+
+            let strokeWidthVal = 1.5;
+            if (isSelected) {
+              strokeWidthVal = 2.5;
+            } else if (isHovered) {
+              strokeWidthVal = 2;
+            }
+
             return (
               <motion.g
                 key={zone.id}
@@ -508,7 +569,7 @@ export function StadiumMap({
                 className="cursor-pointer"
                 initial={{ scale: 0, opacity: 0 }}
                 animate={{
-                  scale: isSelected ? 1.2 : isHovered ? 1.12 : 1,
+                  scale: scaleVal,
                   opacity: 1,
                 }}
                 transition={{ type: 'spring', stiffness: 280, damping: 22, delay: index * 0.025 }}
@@ -529,7 +590,7 @@ export function StadiumMap({
                 <motion.circle
                   cx={coords[0]} cy={coords[1]} r={r + 6}
                   fill={color.fill}
-                  opacity={isSelected ? 0.22 : isHovered ? 0.16 : isCritical ? 0.12 : 0.06}
+                  opacity={opacityVal}
                   transition={{ duration: 0.25 }}
                 />
 
@@ -537,10 +598,10 @@ export function StadiumMap({
                 {isGate ? (
                   <motion.circle
                     cx={coords[0]} cy={coords[1]}
-                    r={isSelected ? r + 2 : isHovered ? r + 1 : r}
+                    r={circleRadius}
                     fill={color.fill}
                     stroke={isSelected ? '#ffffff' : color.stroke}
-                    strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
+                    strokeWidth={strokeWidthVal}
                     filter={isSelected || isHovered ? 'url(#zone-glow)' : undefined}
                     transition={{ duration: 0.2 }}
                   />
@@ -550,7 +611,7 @@ export function StadiumMap({
                     width={isSelected ? 40 : 34} height={isSelected ? 28 : 24}
                     fill={color.fill}
                     stroke={isSelected ? '#ffffff' : color.stroke}
-                    strokeWidth={isSelected ? 2.5 : isHovered ? 2 : 1.5}
+                    strokeWidth={strokeWidthVal}
                     rx={isSelected ? 8 : 6}
                     filter={isSelected || isHovered ? 'url(#zone-glow)' : undefined}
                     transition={{ duration: 0.2 }}

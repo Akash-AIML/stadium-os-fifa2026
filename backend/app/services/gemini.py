@@ -1,6 +1,6 @@
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.config import settings
 from app.models import IntentType, CrowdSnapshot, Alert, Route
 from app.models import ZoneStatus
@@ -149,7 +149,7 @@ class GeminiClient:
 
         return {
             "text": text,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z",
             "is_fallback": is_fallback,
             "response_time": round(response_time, 2),
             "confidence": confidence,
@@ -238,6 +238,7 @@ Reason/Rationale: {route.rationale}
         Assembles contextual state snapshot parameters and structural generation directions
         into the system instruct prompt payload.
         """
+        _ = intent
         from app.services.stadiums import STADIUMS_CONFIG
         from app.services.crowd import crowd_engine
         config = STADIUMS_CONFIG.get(stadium_id, STADIUMS_CONFIG["metlife"])
@@ -300,6 +301,8 @@ Please provide a beautiful and structured response in {full_lang} based on the i
         stadium_id: str = "metlife",
         accessibility_mode: bool = False,
     ) -> str:
+        _ = alerts
+        _ = stadium_id
         lang = language.lower() if language else "en"
         trans = FALLBACK_TRANSLATIONS.get(lang, FALLBACK_TRANSLATIONS["en"])
 

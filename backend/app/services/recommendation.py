@@ -35,7 +35,7 @@ class RecommendationEngine:
         if food_recommendations:
             recommendations.append(food_recommendations)
 
-        restroom_recommendations = self._recommend_restroom(crowd_data, current_zone_id)
+        restroom_recommendations = self._recommend_restroom(crowd_data)
         if restroom_recommendations:
             recommendations.append(restroom_recommendations)
 
@@ -81,7 +81,7 @@ class RecommendationEngine:
             )
 
     def _recommend_restroom(
-        self, crowd_data: list[CrowdSnapshot], current_zone_id: str | None
+        self, crowd_data: list[CrowdSnapshot]
     ) -> Recommendation | None:
         """
         Routes users to clearer restrooms to optimize queue times during match peak cycles.

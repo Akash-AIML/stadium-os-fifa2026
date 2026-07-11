@@ -93,6 +93,42 @@ class CrowdEngine:
 
         return CrowdSnapshot(zone_id=zone_id, density=density, status=status, queue_time=queue_time)
 
+    def _calculate_entrance_density(self, match_time: int) -> float:
+        """Computes entrance density."""
+        if match_time < 30:
+            return 0.7 + 0.2 * math.sin(match_time * 0.1)
+        if match_time > FULLTIME:
+            return 0.4
+        return 0.2
+
+    def _calculate_seating_density(self, match_time: int) -> float:
+        """Computes seating density."""
+        if 30 <= match_time <= FULLTIME:
+            return 0.9
+        if match_time > FULLTIME:
+            return 0.3
+        return 0.4
+
+    def _calculate_food_density(self, match_time: int) -> float:
+        """Computes concession food stand density."""
+        if HALFTIME_START <= match_time <= HALFTIME_END:
+            return 0.85
+        if match_time < 30 or match_time > FULLTIME:
+            return 0.6
+        return 0.3
+
+    def _calculate_wc_density(self, match_time: int) -> float:
+        """Computes restroom density."""
+        if HALFTIME_START <= match_time <= HALFTIME_END:
+            return 0.9
+        return 0.4
+
+    def _calculate_exit_density(self, match_time: int) -> float:
+        """Computes exit gate density."""
+        if match_time > FULLTIME:
+            return 0.8
+        return 0.2
+
     def _calculate_density(self, zone: dict) -> float:
         """
         Computes dynamic zone density coefficients based on active match clock state.
@@ -100,46 +136,20 @@ class CrowdEngine:
         zone_type = zone["type"]
         match_time = self.match_time_minutes
 
-        base_density = DEFAULT_DENSITY
-
         if zone_type == "entrance":
-            if match_time < 30:
-                base_density = 0.7 + 0.2 * math.sin(match_time * 0.1)
-            elif match_time > FULLTIME:
-                base_density = 0.4
-            else:
-                base_density = 0.2
-
+            base_density = self._calculate_entrance_density(match_time)
         elif zone_type == "seating":
-            if 30 <= match_time <= FULLTIME:
-                base_density = 0.9
-            elif match_time > FULLTIME:
-                base_density = 0.3
-            else:
-                base_density = 0.4
-
+            base_density = self._calculate_seating_density(match_time)
         elif zone_type == "food":
-            if HALFTIME_START <= match_time <= HALFTIME_END:
-                base_density = 0.85
-            elif match_time < 30 or match_time > FULLTIME:
-                base_density = 0.6
-            else:
-                base_density = 0.3
-
+            base_density = self._calculate_food_density(match_time)
         elif zone_type == "wc":
-            if HALFTIME_START <= match_time <= HALFTIME_END:
-                base_density = 0.9
-            else:
-                base_density = 0.4
-
+            base_density = self._calculate_wc_density(match_time)
         elif zone_type == "exit":
-            if match_time > FULLTIME:
-                base_density = 0.8
-            else:
-                base_density = 0.2
-
+            base_density = self._calculate_exit_density(match_time)
         elif zone_type == "medical":
             base_density = 0.15
+        else:
+            base_density = DEFAULT_DENSITY
 
         return min(1.0, max(0.0, base_density))
 

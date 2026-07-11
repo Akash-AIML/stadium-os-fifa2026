@@ -19,7 +19,7 @@ def strip_html(text: str) -> str:
     """
     clean = text
     while True:
-        next_clean = re.sub(r"</?[a-zA-Z0-9]+[^>]*>", "", clean)
+        next_clean = re.sub(r"</?[a-zA-Z0-9]+(?:\s+[^>]*)?/?>", "", clean)
         if next_clean == clean:
             break
         clean = next_clean

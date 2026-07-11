@@ -1,11 +1,12 @@
 import pytest
+from typing import Any
 from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
 
 
-def test_chat_success_general(mock_gemini):
+def test_chat_success_general(mock_gemini: Any) -> None:
     response = client.post(
         "/api/v1/chat/",
         json={
@@ -24,7 +25,7 @@ def test_chat_success_general(mock_gemini):
     assert "mocked" in data["data"]["message"]["content"].lower()
 
 
-def test_chat_validation_error():
+def test_chat_validation_error() -> None:
     # Message too short (Pydantic model validation error)
     response = client.post(
         "/api/v1/chat/",
@@ -36,7 +37,7 @@ def test_chat_validation_error():
     assert response.status_code == 422
 
 
-def test_chat_validation_forbidden_content():
+def test_chat_validation_forbidden_content() -> None:
     response = client.post(
         "/api/v1/chat/",
         json={
@@ -50,7 +51,7 @@ def test_chat_validation_forbidden_content():
     assert "forbidden" in data["error"].lower()
 
 
-def test_chat_intent_navigation(mock_gemini):
+def test_chat_intent_navigation(mock_gemini: Any) -> None:
     response = client.post(
         "/api/v1/chat/",
         json={
@@ -73,7 +74,7 @@ def test_chat_intent_navigation(mock_gemini):
         ("hello world", "general"),
     ],
 )
-def test_chat_intent_parametrization(mock_gemini, message, expected_intent):
+def test_chat_intent_parametrization(mock_gemini: Any, message: str, expected_intent: str) -> None:
     response = client.post(
         "/api/v1/chat/",
         json={

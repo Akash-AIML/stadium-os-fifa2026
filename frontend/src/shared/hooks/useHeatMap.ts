@@ -1,6 +1,5 @@
 import { useMemo, useCallback } from 'react';
-import { ZoneStatus, CrowdSnapshot, CrowdZone } from '../types';
-import { STADIUM_ZONES_METADATA } from '../utils/zones';
+import { ZoneStatus, CrowdZone } from '../types';
 
 interface HeatmapZone {
   id: string;

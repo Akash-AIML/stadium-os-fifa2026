@@ -24,7 +24,8 @@ WORKDIR $HOME/app
 # Copy installed packages from builder stage
 COPY --chown=user:user --from=builder /root/.local /home/user/.local
 # Copy application code
-COPY --chown=user:user . .
+COPY --chown=user:user app app
+COPY --chown=user:user api api
 
 # Expose port 7860 as expected by Hugging Face Spaces
 EXPOSE 7860

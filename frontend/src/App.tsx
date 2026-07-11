@@ -13,10 +13,9 @@ import { Dashboard } from './features/crowd/Dashboard';
 import { RecommendationsList } from './features/crowd/RecommendationCard';
 import { OnboardingModal } from './shared/components/OnboardingModal';
 import { DevModePanel } from './shared/components/DevModePanel';
-import { useSimulation } from './shared/hooks/useSimulation';
-import { STADIUM_ZONES_METADATA } from './shared/utils/zones';
 import { STADIUMS_CONFIG } from './shared/utils/stadiums';
 import { fetchRoute } from './services/api';
+import type { Route } from './shared/types';
 
 // Premium Core Components
 import { TopNavbar } from './shared/components/TopNavbar';
@@ -24,13 +23,53 @@ import { TimelineSlider } from './shared/components/TimelineSlider';
 import { StadiumHero3D } from './shared/components/StadiumHero3D';
 import { ToastSystem } from './shared/components/ToastSystem';
 
+function syncAiToMap(
+  lastMsg: { route_id?: string; content: string },
+  config: any,
+  activeStadium: string,
+  accessibilityMode: boolean,
+  currentZoneId: string | null,
+  setCurrentRoute: (r: Route | null) => void,
+  setCurrentZone: (z: string) => void
+) {
+  if (lastMsg.route_id) {
+    const routeId = lastMsg.route_id;
+    const zoneIds = Object.keys(config.zones);
+    const found = zoneIds.filter(id => routeId.includes(id));
+    if (found.length >= 2) {
+      const sorted = [...found].sort((a, b) => routeId.indexOf(a) - routeId.indexOf(b));
+      const fromZone = sorted[0];
+      const toZone = sorted[1];
+      fetchRoute(fromZone, toZone, activeStadium, accessibilityMode)
+        .then(routeData => {
+          setCurrentRoute(routeData);
+          setCurrentZone(toZone);
+        })
+        .catch(() => {});
+    }
+  } else {
+    const contentLower = lastMsg.content.toLowerCase();
+    const mentionedZone = Object.keys(config.zones).find(id => {
+      const label = config.zones[id].label.toLowerCase();
+      return contentLower.includes(label) || contentLower.includes(id.replace(/_/g, ' '));
+    });
+    if (mentionedZone) {
+      setCurrentZone(mentionedZone);
+      if (currentZoneId && currentZoneId !== mentionedZone) {
+        fetchRoute(currentZoneId, mentionedZone, activeStadium, accessibilityMode)
+          .then(routeData => setCurrentRoute(routeData))
+          .catch(() => {});
+      }
+    }
+  }
+}
+
 function AppContent() {
-  const { state, setCurrentZone, toggleDevMode, setSimulationTime } = useApp();
-  const { setMatchTime } = useSimulation();
+  const { state, setCurrentZone } = useApp();
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [showHero, setShowHero] = useState(true);
   const [activeTab, setActiveTab] = useState<'map' | 'chat' | 'dashboard'>('map');
-  const [currentRoute, setCurrentRoute] = useState<any | null>(null);
+  const [currentRoute, setCurrentRoute] = useState<Route | null>(null);
   const [showMobileChatSheet, setShowMobileChatSheet] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState<'density' | 'queue' | 'flow'>('density');
@@ -52,56 +91,28 @@ function AppContent() {
         const activeStadium = state.user.stadium_id || 'metlife';
         const config = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
 
-        // 1. If response specifies a routing path, calculate and draw it (debounced 400ms)
-        if (lastMsg.route_id) {
-          if (routeDebounceRef.current) clearTimeout(routeDebounceRef.current);
-          routeDebounceRef.current = setTimeout(() => {
-            const routeId = lastMsg.route_id!;
-            const zoneIds = Object.keys(config.zones);
-            const found = zoneIds.filter(id => routeId.includes(id));
-            if (found.length >= 2) {
-              const sorted = found.sort((a, b) => routeId.indexOf(a) - routeId.indexOf(b));
-              const fromZone = sorted[0];
-              const toZone = sorted[1];
-              fetchRoute(fromZone, toZone, activeStadium, state.user.accessibility_mode)
-                .then(routeData => {
-                  setCurrentRoute(routeData);
-                  setCurrentZone(toZone);
-                })
-                .catch(() => {}); // Silently ignore 429/offline errors
-            }
-          }, 400);
-        } else {
-          // 2. Highlight/Pulse the zone mentioned by name in response content
-          //    AND draw a route line from current zone → mentioned zone if possible
-          const contentLower = lastMsg.content.toLowerCase();
-          const mentionedZone = Object.keys(config.zones).find(id => {
-            const label = config.zones[id].label.toLowerCase();
-            return contentLower.includes(label) || contentLower.includes(id.replace(/_/g, ' '));
-          });
-          if (mentionedZone) {
-            setCurrentZone(mentionedZone);
-            // Draw route from current position to the mentioned zone
-            if (state.current_zone_id && state.current_zone_id !== mentionedZone) {
-              if (routeDebounceRef.current) clearTimeout(routeDebounceRef.current);
-              routeDebounceRef.current = setTimeout(() => {
-                fetchRoute(state.current_zone_id!, mentionedZone, activeStadium, state.user.accessibility_mode)
-                  .then(routeData => setCurrentRoute(routeData))
-                  .catch(() => {});
-              }, 400);
-            }
-          }
-        }
+        if (routeDebounceRef.current) clearTimeout(routeDebounceRef.current);
+        routeDebounceRef.current = setTimeout(() => {
+          syncAiToMap(
+            lastMsg,
+            config,
+            activeStadium,
+            state.user.accessibility_mode || false,
+            state.current_zone_id,
+            setCurrentRoute,
+            setCurrentZone
+          );
+        }, 400);
       }
     }
-  }, [state.chat_history, state.user.stadium_id, state.user.accessibility_mode, setCurrentZone]);
+  }, [state.chat_history, state.user.stadium_id, state.user.accessibility_mode, state.current_zone_id, setCurrentZone]);
 
   // Clear route cache whenever accessibility mode changes so stale routes aren't served
   useEffect(() => {
     routeCacheRef.current.clear();
   }, [state.user.accessibility_mode]);
 
-  const routeCacheRef = useRef<Map<string, any>>(new Map());
+  const routeCacheRef = useRef<Map<string, Route | null>>(new Map());
 
   const handleZoneClick = async (zoneId: string) => {
     if (state.current_zone_id && state.current_zone_id !== zoneId) {
@@ -128,7 +139,6 @@ function AppContent() {
       setCurrentRoute(null);
     }
     setCurrentZone(zoneId);
-    // NOTE: loadData() removed — crowd data streams in via WebSocket automatically
   };
 
   const handleEnterGuide = () => {
@@ -136,9 +146,6 @@ function AppContent() {
     localStorage.setItem('fifa_smart_guide_entered', 'true');
   };
 
-  // Map raw snapshots into CrowdZone format
-  // Seed from STADIUMS_CONFIG so the map is always interactive even before WebSocket data arrives.
-  // Live crowd data (density/status) overlays on top when the WebSocket connects.
   const activeStadium = state.user.stadium_id || 'metlife';
   const currentStadium = STADIUMS_CONFIG[activeStadium] || STADIUMS_CONFIG.metlife;
 
@@ -149,7 +156,13 @@ function AppContent() {
     const status     = (live?.status ?? 'low') as import('./shared/types').ZoneStatus;
     const history    = [density * 0.9, density * 0.95, density * 1.05, density];
     const waitHistory = [queueTime - 2, queueTime - 1, queueTime + 1, queueTime];
-    const trend      = density > 0.75 ? 'up' : density < 0.25 ? 'down' : 'stable';
+
+    let trend: 'up' | 'down' | 'stable' = 'stable';
+    if (density > 0.75) {
+      trend = 'up';
+    } else if (density < 0.25) {
+      trend = 'down';
+    }
 
     return {
       id: zoneId,
@@ -159,7 +172,7 @@ function AppContent() {
       status,
       density,
       queueTime,
-      trend: trend as 'up' | 'down' | 'stable',
+      trend,
       history,
       waitHistory,
       recommendations: [] as string[],
@@ -296,7 +309,7 @@ function AppContent() {
           <TopNavbar showChat={showChat} onToggleChat={() => setShowChat(s => !s)} onNavigate={handleZoneClick} />
 
           {/* ── Mobile tab bar ───────────────────────────────── */}
-          <nav
+          <div
             className="md:hidden sticky top-[60px] z-30 border-b"
             style={{
               background: 'var(--glass-bg-strong)',
@@ -327,7 +340,7 @@ function AppContent() {
                 </button>
               ))}
             </div>
-          </nav>
+          </div>
 
           {/* ── Main workspace ───────────────────────────────── */}
           <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -374,6 +387,7 @@ function AppContent() {
                         activeRoute={currentRoute}
                         showHeatmap={true}
                         stadiumId={state.user.stadium_id}
+                        accessibleMode={state.user.accessibility_mode || false}
                       />
                     </div>
                   </div>
@@ -465,10 +479,11 @@ function AppContent() {
                   exit={{ y: '100%' }}
                   transition={{ type: 'spring', damping: 26, stiffness: 220 }}
                 >
-                  <div
-                    className="w-10 h-1 rounded-full mx-auto mb-4 cursor-pointer"
+                  <button
+                    className="w-10 h-1 rounded-full mx-auto mb-4 cursor-pointer border-0 p-0 block"
                     style={{ background: 'hsl(var(--border-strong))' }}
                     onClick={() => setShowMobileChatSheet(false)}
+                    aria-label="Close chat"
                   />
                   <div className="flex-1 min-h-0">
                     <ChatWindow currentZoneId={state.current_zone_id} />

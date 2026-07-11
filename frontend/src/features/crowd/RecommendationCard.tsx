@@ -44,7 +44,7 @@ const PRIORITY_STYLES: Record<string, { border: string; glow: string; text: stri
   },
 };
 
-export function RecommendationCard({ recommendation, onNavigate }: RecommendationCardProps) {
+export function RecommendationCard({ recommendation, onNavigate }: Readonly<RecommendationCardProps>) {
   const styles = PRIORITY_STYLES[recommendation.priority] || PRIORITY_STYLES.low;
   const Icon = TYPE_ICONS[recommendation.type as keyof typeof TYPE_ICONS] || MapPin;
 
@@ -106,7 +106,7 @@ interface RecommendationsListProps {
   onNavigate?: (zoneId: string) => void;
 }
 
-export function RecommendationsList({ recommendations, onNavigate }: RecommendationsListProps) {
+export function RecommendationsList({ recommendations, onNavigate }: Readonly<RecommendationsListProps>) {
   if (recommendations.length === 0) {
     return (
       <div className="text-center py-10 flex flex-col items-center justify-center border border-dashed rounded-xl" style={{ borderColor: 'hsl(var(--border))' }}>

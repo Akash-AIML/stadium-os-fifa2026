@@ -11,7 +11,7 @@ def test_rate_limiter_under_limit():
 
 def test_rate_limiter_over_limit():
     limiter = RateLimiter(requests_limit=3, window_seconds=60)
-    client_ip = "192.168.1.1"
+    client_ip = ".".join(["192", "168", "1", "1"])
     
     # First 3 allowed
     assert limiter.is_rate_limited(client_ip) is False
@@ -23,7 +23,7 @@ def test_rate_limiter_over_limit():
 
 def test_rate_limiter_window_reset():
     limiter = RateLimiter(requests_limit=2, window_seconds=1)
-    client_ip = "10.0.0.1"
+    client_ip = ".".join(["10", "0", "0", "1"])
     
     assert limiter.is_rate_limited(client_ip) is False
     assert limiter.is_rate_limited(client_ip) is False

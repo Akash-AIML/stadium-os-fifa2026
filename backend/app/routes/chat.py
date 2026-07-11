@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 
 from app.config import settings
@@ -55,6 +55,44 @@ def _resolve_target_type(message: str) -> str | None:
     return None
 
 
+def _find_closest_facility(
+    from_zone: str,
+    candidate_zones: list[str],
+    stadium_id: str,
+    accessibility_mode: bool
+) -> str | None:
+    """
+    Computes routes to candidate facility zones and returns the closest one based on travel time.
+    """
+    best_zone = None
+    min_time = float("inf")
+    crowd_data = crowd_engine.get_all_snapshots(stadium_id)
+    for cz in candidate_zones:
+        try:
+            test_route = navigation_engine.find_route(
+                from_zone, cz, crowd_data, stadium_id, accessibility_mode
+            )
+            if test_route and test_route.estimated_time < min_time:
+                min_time = test_route.estimated_time
+                best_zone = cz
+        except Exception:
+            logger.exception("Error searching routes for target facility check")
+    return best_zone
+
+
+def _get_route_defaults(from_zone: str | None, to_zone: str | None) -> tuple[str | None, str | None]:
+    """
+    Applies default start/end zones if only one side of the navigation target is defined.
+    """
+    res_from = from_zone
+    res_to = to_zone
+    if res_from and not res_to:
+        res_to = "exit_main" if res_from != "exit_main" else "gate_north"
+    elif not res_from and res_to:
+        res_from = "gate_north" if res_to != "gate_north" else "gate_south"
+    return res_from, res_to
+
+
 def _resolve_facility_route(
     message: str,
     stadium_zones: list[dict],
@@ -74,34 +112,16 @@ def _resolve_facility_route(
         candidate_zones = [z["id"] for z in stadium_zones if z["type"] == target_type]
         if candidate_zones:
             if res_from:
-                best_zone = None
-                min_time = float("inf")
-                crowd_data = crowd_engine.get_all_snapshots(stadium_id)
-                for cz in candidate_zones:
-                    try:
-                        test_route = navigation_engine.find_route(
-                            res_from, cz, crowd_data, stadium_id, accessibility_mode
-                        )
-                        if test_route and test_route.estimated_time < min_time:
-                            min_time = test_route.estimated_time
-                            best_zone = cz
-                    except Exception as e:
-                        logger.warning("Error searching routes for target facility check: %s", str(e))
+                best_zone = _find_closest_facility(res_from, candidate_zones, stadium_id, accessibility_mode)
                 if best_zone:
                     res_to = best_zone
             else:
                 res_to = candidate_zones[0]
 
-    # Apply defaults if only one side is known and we haven't resolved a target type
-    if res_from and not res_to:
-        res_to = "exit_main" if res_from != "exit_main" else "gate_north"
-    elif not res_from and res_to:
-        res_from = "gate_north" if res_to != "gate_north" else "gate_south"
-
-    return res_from, res_to
+    return _get_route_defaults(res_from, res_to)
 
 
-async def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
+def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
     """
     Coordinates chat message pipeline: validation, intent parsing, routing resolution,
     co-pilot generating, response sanitization, and returning metadata.
@@ -116,7 +136,7 @@ async def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
         if request.seat_number:
             validate_seat_number(request.seat_number)
     except ValueError as e:
-        logger.error("Chat payload validation failed: %s", str(e))
+        logger.exception("Chat payload validation failed")
         return ApiResponse(success=False, error=str(e))
 
     # 2. Detect Intent
@@ -139,8 +159,8 @@ async def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
         try:
             crowd_data = crowd_engine.get_all_snapshots(stadium_id)
             route = navigation_engine.find_route(from_zone, to_zone, crowd_data, stadium_id, accessibility_mode)
-        except Exception as e:
-            logger.warning("Routing pathfinder calculation failed inside handle_chat: %s", str(e))
+        except Exception:
+            logger.exception("Routing pathfinder calculation failed inside handle_chat")
 
     # Fetch context data (crowd snapshots relevant to the user's current zone)
     context_data = crowd_engine.get_relevant_zones(request.current_zone_id, stadium_id)
@@ -166,7 +186,7 @@ async def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
         id=str(uuid.uuid4()),
         role="model",
         content=clean_ai_text,
-        timestamp=ai_response.get("timestamp") or datetime.utcnow().isoformat() + "Z",
+        timestamp=ai_response.get("timestamp") or datetime.now(timezone.utc).replace(tzinfo=None).isoformat() + "Z",
         intent=intent,
         context_snapshot=context_data,
         is_fallback=ai_response.get("is_fallback", False),
@@ -196,15 +216,21 @@ async def handle_chat(request: ChatRequest) -> ApiResponse[ChatResponse]:
     )
 
 
-@router.post("/", response_model=ApiResponse[ChatResponse], dependencies=[Depends(rate_limit_dependency)])
-async def chat_endpoint(request: ChatRequest):
+@router.post(
+    "/",
+    dependencies=[Depends(rate_limit_dependency)],
+    responses={
+        422: {"description": "Validation Error"},
+        500: {"description": "Internal Server Error"},
+    }
+)
+def chat_endpoint(request: ChatRequest) -> ApiResponse[ChatResponse]:
     """API endpoint for co-pilot conversational interface, rate-limited."""
     try:
-        result = await handle_chat(request)
-        return result
+        return handle_chat(request)
     except ValueError as e:
-        logger.error("ValueError in chat_endpoint: %s", str(e))
+        logger.exception("ValueError in chat_endpoint")
         raise HTTPException(status_code=422, detail=str(e))
-    except Exception as e:
-        logger.error("Unhandled Exception in chat_endpoint: %s", str(e))
+    except Exception:
+        logger.exception("Unhandled Exception in chat_endpoint")
         raise HTTPException(status_code=500, detail="Internal server error")

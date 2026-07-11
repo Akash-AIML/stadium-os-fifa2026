@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Users, AlertTriangle, Timer, MapPin, Activity,
-  TrendingUp, TrendingDown, Minus
 } from 'lucide-react';
 import { Alert, ZoneStatus, CrowdSnapshot } from '../../shared/types';
 import { CircularProgress } from '../../shared/components/PremiumCards';
 
+type MetricType = 'density' | 'queue' | 'flow';
+
 interface DashboardProps {
   alerts: Alert[];
   crowdData: CrowdSnapshot[];
-  selectedMetric?: 'density' | 'queue' | 'flow';
-  onMetricChange?: (metric: 'density' | 'queue' | 'flow') => void;
+  selectedMetric?: MetricType;
+  onMetricChange?: (metric: MetricType) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,6 +21,18 @@ const STATUS_COLORS: Record<string, string> = {
   [ZoneStatus.BUSY]:     '#f97316',
   [ZoneStatus.CONGESTED]:'#ef4444',
 };
+
+function getQueueColor(queueTime: number): string {
+  if (queueTime > 20) return '#ef4444';
+  if (queueTime > 10) return '#f97316';
+  return '#10b981';
+}
+
+function getFlowColor(flow: number): string {
+  if (flow < 30) return '#ef4444';
+  if (flow < 60) return '#f97316';
+  return '#10b981';
+}
 
 // ── Animated counter hook ─────────────────────────────────────────────────────
 function useCountUp(target: number, duration = 800) {
@@ -41,7 +54,7 @@ function useCountUp(target: number, duration = 800) {
   return value;
 }
 
-export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, onMetricChange: externalChange }: DashboardProps) {
+export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, onMetricChange: externalChange }: Readonly<DashboardProps>) {
   const [localMetric, setLocalMetric] = useState<'density' | 'queue' | 'flow'>('density');
 
   const selectedMetric = externalMetric || localMetric;
@@ -79,7 +92,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
           status: c.status,
           value: `${c.queue_time}m`,
           label: 'wait time',
-          color: c.queue_time > 20 ? '#ef4444' : c.queue_time > 10 ? '#f97316' : '#10b981'
+          color: getQueueColor(c.queue_time)
         }));
     } else if (selectedMetric === 'flow') {
       return [...crowdData]
@@ -93,7 +106,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
             status: c.status,
             value: `${flow}%`,
             label: 'flow rate',
-            color: flow < 30 ? '#ef4444' : flow < 60 ? '#f97316' : '#10b981'
+            color: getFlowColor(flow)
           };
         });
     } else {
@@ -114,7 +127,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
 
   return (
     <div className="space-y-4">
-      {/* ── KPI Row (Extremely compact StatCards for test assertions) ── */}
+      {/* ── KPI Row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {/* Overall Density Card */}
         <div className="p-3 rounded-xl border flex flex-col justify-between" style={{ background: 'hsl(var(--elevated))', borderColor: 'hsl(var(--border))' }}>
@@ -170,7 +183,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
         </div>
       </div>
 
-      {/* ── Metric Tab Bar ────────────────────────────────────── */}
+      {/* ── Metric Tab Bar ── */}
       <div className="flex p-1 rounded-xl" style={{ background: 'hsl(var(--elevated))', border: '1px solid hsl(var(--border))' }}>
         {(['density', 'queue', 'flow'] as const).map(m => (
           <motion.button
@@ -190,7 +203,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
         ))}
       </div>
 
-      {/* ── Split Card View (Gauges and Rankings) ─────────────── */}
+      {/* ── Split Card View (Gauges and Rankings) ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
         {/* Left: Circular gauge for current metric */}
         <div className="flex flex-col items-center justify-center p-2">
@@ -250,7 +263,7 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
         </div>
       </div>
 
-      {/* ── Active Alerts ─────────────────────────────────────── */}
+      {/* ── Active Alerts ── */}
       {alerts.length > 0 && (
         <div className="border-t pt-3" style={{ borderColor: 'hsl(var(--border))' }}>
           <div className="flex items-center gap-1.5 mb-2">
@@ -258,19 +271,25 @@ export function Dashboard({ alerts, crowdData, selectedMetric: externalMetric, o
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Alerts</span>
           </div>
           <div className="space-y-1.5">
-            {alerts.map(alert => (
-              <div
-                key={alert.id}
-                className="flex items-start gap-2 p-2.5 rounded-lg text-xs"
-                style={{
-                  background: alert.level === 'critical' ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)',
-                  borderLeft: `2.5px solid ${alert.level === 'critical' ? '#ef4444' : '#f59e0b'}`
-                }}
-              >
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: alert.level === 'critical' ? '#ef4444' : '#f59e0b' }} />
-                <span className="leading-normal text-slate-300 font-medium">{alert.message}</span>
-              </div>
-            ))}
+            {alerts.map(alert => {
+              const isCritical = alert.level === 'critical';
+              const alertBg = isCritical ? 'rgba(239,68,68,0.05)' : 'rgba(245,158,11,0.05)';
+              const alertColor = isCritical ? '#ef4444' : '#f59e0b';
+
+              return (
+                <div
+                  key={alert.id}
+                  className="flex items-start gap-2 p-2.5 rounded-lg text-xs"
+                  style={{
+                    background: alertBg,
+                    borderLeft: `2.5px solid ${alertColor}`
+                  }}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: alertColor }} />
+                  <span className="leading-normal text-slate-300 font-medium">{alert.message}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -39,6 +39,27 @@ class NavigationEngine:
         loc2 = zone_locations.get(zone2_id, (0, 0))
         return ((loc1[0] - loc2[0]) ** 2 + (loc1[1] - loc2[1]) ** 2) ** 0.5
 
+    def _get_edge_weight(
+        self,
+        current_zone: str,
+        neighbor: str,
+        zone_locations: dict,
+        crowd_map: dict,
+        accessibility_mode: bool,
+        accessible_zones: set[str]
+    ) -> float:
+        """
+        Calculates the dynamic edge traversal weight between two zones.
+        """
+        distance = self._calculate_distance(current_zone, neighbor, zone_locations)
+        density = crowd_map.get(neighbor, DEFAULT_ALT_DENSITY)
+        weight = (distance * DISTANCE_WEIGHT) + (density * DENSITY_SCALE * CONGESTION_WEIGHT)
+
+        if accessibility_mode and neighbor not in accessible_zones:
+            weight += ACCESSIBILITY_PENALTY
+
+        return weight
+
     def _run_dijkstra(
         self,
         from_zone: str,
@@ -55,10 +76,16 @@ class NavigationEngine:
         congestion status, and physical coordinates distance weights into calculations.
         """
         distances = {zone: float("inf") for zone in zone_graph}
-        distances[from_zone] = 0
+        distances[from_zone] = 0.0
         previous = {zone: None for zone in zone_graph}
         pq = [(0.0, from_zone)]
         visited = set()
+
+        accessible_zones = set()
+        if accessibility_mode:
+            elevators = set(accessibility.get("elevators", []))
+            wheelchair_seating = set(accessibility.get("wheelchair_seating", []))
+            accessible_zones = elevators | wheelchair_seating | {"exit_main", "exit_emergency"}
 
         while pq:
             current_dist, current_zone = heapq.heappop(pq)
@@ -78,16 +105,10 @@ class NavigationEngine:
                 if neighbor in congested_zones and neighbor != to_zone:
                     continue
 
-                distance = self._calculate_distance(current_zone, neighbor, zone_locations)
-                density = crowd_map.get(neighbor, DEFAULT_ALT_DENSITY)
-                weight = (distance * DISTANCE_WEIGHT) + (density * DENSITY_SCALE * CONGESTION_WEIGHT)
-
-                if accessibility_mode:
-                    elevators = set(accessibility.get("elevators", []))
-                    wheelchair_seating = set(accessibility.get("wheelchair_seating", []))
-                    accessible_zones = elevators | wheelchair_seating | {"exit_main", "exit_emergency"}
-                    if neighbor not in accessible_zones:
-                        weight += ACCESSIBILITY_PENALTY
+                weight = self._get_edge_weight(
+                    current_zone, neighbor, zone_locations,
+                    crowd_map, accessibility_mode, accessible_zones
+                )
 
                 new_dist = current_dist + weight
                 if new_dist < distances[neighbor]:
@@ -99,7 +120,6 @@ class NavigationEngine:
 
     def _reconstruct_path(
         self,
-        from_zone: str,
         to_zone: str,
         distances: dict[str, float],
         previous: dict[str, str | None]
@@ -167,7 +187,7 @@ class NavigationEngine:
             crowd_map, congested_zones, accessibility, accessibility_mode
         )
 
-        path = self._reconstruct_path(from_zone, to_zone, distances, previous)
+        path = self._reconstruct_path(to_zone, distances, previous)
         if path is None:
             logger.warning("No viable Dijkstra route path, using fallback direct route")
             return Route(

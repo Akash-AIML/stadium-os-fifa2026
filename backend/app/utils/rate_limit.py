@@ -41,7 +41,7 @@ class RateLimiter:
 limiter = RateLimiter(settings.rate_limit_per_minute, 60)
 
 
-async def rate_limit_dependency(request: Request) -> None:
+def rate_limit_dependency(request: Request) -> None:
     """
     FastAPI dependency injection checking incoming request rate limit using X-Forwarded-For proxy IP headers.
     """
