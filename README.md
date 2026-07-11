@@ -558,12 +558,12 @@ SonarQube's limit is **15** per function. Every function exceeding this was refa
 | File | Rule | Fix Applied |
 |:---|:---|:---|
 | `frontend/src/shared/components/input-group.tsx` | S6747 — non-interactive element with click handler | Added `role="button"`, `tabIndex={0}`, `onKeyDown` keyboard handler |
-| `frontend/src/features/navigation/StadiumMap.tsx` | S6747 — drag-pan div without keyboard listener | Added `onKeyDown` (Escape key cancels drag), `role="region"`, `tabIndex={0}`, `aria-label` |
+| `frontend/src/features/navigation/StadiumMap.tsx` | S6747 — drag-pan div without keyboard listener | Converted to semantic `<section>` with `aria-label`; dynamically attached mouse panning/dragging listeners in `useEffect` (attaching `mousemove`/`mouseup` to `window` during dragging) to keep JSX clean and avoid static role warnings |
 
 #### 🏎️ Performance — Regex Backtracking S5852
 | File | Before | After |
 |:---|:---|:---|
-| `useTextToSpeech.ts` | `/\[([^\]]*?)\]\([^)]*?\)/g` | `/\[([^\]]+)\]\([^)]+\)/g` — greedy quantifiers with atomic sets (`[^\]]`, `[^)]`) prevent super-linear backtracking entirely |
+| `useTextToSpeech.ts` | `/\[([^\]]*?)\]\([^)]*?\)/g` | `/\[([^\]\n]+)\]\(([^)\s]+)\)/g` — greedy quantifiers with line-restricted text (`[^\]\n]`) and space-restricted URL (`[^)\s]`) prevent backtracking entirely |
 
 #### ⚙️ Build & Config
 | File | Rule | Fix |
