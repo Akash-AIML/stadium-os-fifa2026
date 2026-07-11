@@ -44,10 +44,10 @@ export function useTextToSpeech() {
         return;
       }
 
-      // Strip markdown to read cleanly — use greedy [^…]+ (atomic sets, no backtracking)
+      // Strip markdown to read cleanly — limit URL pattern to non-whitespace and non-parenthesis characters to prevent backtracking
       const cleanText = text
         .replace(/[*#`_-]/g, '')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+        .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, '$1');
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
 

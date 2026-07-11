@@ -56,19 +56,57 @@ export function StadiumMap({
     return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // ── Drag panning ────────────────────────────────────────────────────────────
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (viewMode === 'outdoor') return;
-    setIsDragging(true);
-    dragStartRef.current = { x: e.clientX - mapPosition.x, y: e.clientY - mapPosition.y };
-  };
+  // ── Drag panning (using refs to avoid teardown/re-bind cycle during movement) ──
+  const mapPositionRef = useRef(mapPosition);
+  useEffect(() => {
+    mapPositionRef.current = mapPosition;
+  }, [mapPosition]);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || viewMode === 'outdoor') return;
-    setMapPosition({ x: e.clientX - dragStartRef.current.x, y: e.clientY - dragStartRef.current.y });
-  };
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || viewMode === 'outdoor') return;
 
-  const handleMouseUpOrLeave = () => { setIsDragging(false); };
+    const handleMouseDown = (e: MouseEvent) => {
+      setIsDragging(true);
+      dragStartRef.current = {
+        x: e.clientX - mapPositionRef.current.x,
+        y: e.clientY - mapPositionRef.current.y
+      };
+    };
+
+    el.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      el.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setMapPosition({
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDragging]);
 
   // ── Active route overlay ────────────────────────────────────────────────────
   const renderActiveRoute = () => {
@@ -130,21 +168,14 @@ export function StadiumMap({
   const hoveredColor = hoveredData ? ZONE_COLORS[hoveredData.status as ZoneStatus] : null;
 
   return (
-    <div
+    <section
       ref={containerRef}
-      role="region"
-      tabIndex={0}
       className="relative w-full h-full overflow-hidden flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none"
       style={{
         background: 'radial-gradient(circle at center, #0b1120 0%, #030712 100%)',
         border: '1px solid var(--glass-border)',
         borderRadius: 20,
       }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUpOrLeave}
-      onMouseLeave={handleMouseUpOrLeave}
-      onKeyDown={e => { if (e.key === 'Escape') setIsDragging(false); }}
       aria-label={`${stadiumConfig.name} Stadium Map`}
     >
       {/* View mode tabs */}
@@ -323,7 +354,7 @@ export function StadiumMap({
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
 
