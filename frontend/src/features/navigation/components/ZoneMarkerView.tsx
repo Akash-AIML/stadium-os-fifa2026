@@ -24,9 +24,18 @@ function getZoneIcon(type: string) {
 
 // ── Pure helper: derive visual state values from zone interaction flags ───────
 export function computeZoneMarkerState(isSelected: boolean, isHovered: boolean, isCritical: boolean, r: number) {
-  const scaleVal       = isSelected ? 1.2   : isHovered ? 1.12 : 1;
-  const circleRadius   = isSelected ? r + 2 : isHovered ? r + 1 : r;
-  const strokeWidthVal = isSelected ? 2.5   : isHovered ? 2 : 1.5;
+  // Avoid nested ternaries: compute each value with explicit precedence
+  let scaleVal = 1;
+  if (isSelected)     scaleVal = 1.2;
+  else if (isHovered) scaleVal = 1.12;
+
+  let circleRadius = r;
+  if (isSelected)     circleRadius = r + 2;
+  else if (isHovered) circleRadius = r + 1;
+
+  let strokeWidthVal = 1.5;
+  if (isSelected)     strokeWidthVal = 2.5;
+  else if (isHovered) strokeWidthVal = 2;
 
   let opacityVal = 0.06;
   if (isSelected)     { opacityVal = 0.22; }
@@ -44,6 +53,53 @@ export interface ZoneMarkerViewProps {
   onZoneClick: (zoneId: string) => void;
   setHoveredZone: (zoneId: string | null) => void;
   STADIUM_ZONES_METADATA: Record<string, { location: [number, number] }>;
+}
+
+/** Render the correct SVG shape (circle for gates, rect for regular zones). */
+function renderZoneShape(
+  isGate: boolean,
+  isSelected: boolean,
+  isHovered: boolean,
+  coords: [number, number],
+  circleRadius: number,
+  strokeWidthVal: number,
+  color: { fill: string; stroke: string },
+) {
+  const filter = isSelected || isHovered ? 'url(#zone-glow)' : undefined;
+  const stroke = isSelected ? '#ffffff' : color.stroke;
+
+  if (isGate) {
+    return (
+      <motion.circle
+        cx={coords[0]} cy={coords[1]}
+        r={circleRadius}
+        fill={color.fill}
+        stroke={stroke}
+        strokeWidth={strokeWidthVal}
+        filter={filter}
+        transition={{ duration: 0.2 }}
+      />
+    );
+  }
+
+  const x = coords[0] - (isSelected ? 20 : 17);
+  const y = coords[1] - (isSelected ? 14 : 12);
+  const w = isSelected ? 40 : 34;
+  const h = isSelected ? 28 : 24;
+  const rx = isSelected ? 8 : 6;
+
+  return (
+    <motion.rect
+      x={x} y={y}
+      width={w} height={h}
+      fill={color.fill}
+      stroke={stroke}
+      strokeWidth={strokeWidthVal}
+      rx={rx}
+      filter={filter}
+      transition={{ duration: 0.2 }}
+    />
+  );
 }
 
 /** SVG group marker for a single stadium zone. */
@@ -102,28 +158,7 @@ export const ZoneMarkerView = memo(({
         transition={{ duration: 0.25 }}
       />
       {/* Zone shape */}
-      {isGate ? (
-        <motion.circle
-          cx={coords[0]} cy={coords[1]}
-          r={circleRadius}
-          fill={color.fill}
-          stroke={isSelected ? '#ffffff' : color.stroke}
-          strokeWidth={strokeWidthVal}
-          filter={isSelected || isHovered ? 'url(#zone-glow)' : undefined}
-          transition={{ duration: 0.2 }}
-        />
-      ) : (
-        <motion.rect
-          x={coords[0] - (isSelected ? 20 : 17)} y={coords[1] - (isSelected ? 14 : 12)}
-          width={isSelected ? 40 : 34} height={isSelected ? 28 : 24}
-          fill={color.fill}
-          stroke={isSelected ? '#ffffff' : color.stroke}
-          strokeWidth={strokeWidthVal}
-          rx={isSelected ? 8 : 6}
-          filter={isSelected || isHovered ? 'url(#zone-glow)' : undefined}
-          transition={{ duration: 0.2 }}
-        />
-      )}
+      {renderZoneShape(isGate, isSelected, isHovered, coords, circleRadius, strokeWidthVal, color)}
       {/* Selected ring */}
       {isSelected && (
         <motion.circle

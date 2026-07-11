@@ -44,10 +44,10 @@ export function useTextToSpeech() {
         return;
       }
 
-      // Strip markdown tags to read cleanly
+      // Strip markdown to read cleanly — use greedy [^…]+ (atomic sets, no backtracking)
       const cleanText = text
         .replace(/[*#`_-]/g, '')
-        .replace(/\[([^\]]*?)\]\([^)]*?\)/g, '$1');
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
 

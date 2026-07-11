@@ -6,7 +6,6 @@ import { STADIUMS_CONFIG } from './shared/utils/stadiums';
 import { useRouteCache } from './shared/hooks/useRouteCache';
 import { useAiMapSync } from './shared/hooks/useAiMapSync';
 import { TopNavbar } from './shared/components/TopNavbar';
-import { TimelineSlider } from './shared/components/TimelineSlider';
 import { ToastSystem } from './shared/components/ToastSystem';
 import { OnboardingModal } from './shared/components/OnboardingModal';
 import { DevModePanel } from './shared/components/DevModePanel';
@@ -17,6 +16,14 @@ import type { ZoneStatus } from './shared/types';
 
 type ActiveTab       = 'map' | 'chat' | 'dashboard';
 type SelectedMetric  = 'density' | 'queue' | 'flow';
+type ZoneTrend       = 'up' | 'down' | 'stable';
+
+/** Determine crowd trend from density value without nesting ternaries. */
+function getDensityTrend(density: number): ZoneTrend {
+  if (density > 0.75) return 'up';
+  if (density < 0.25) return 'down';
+  return 'stable';
+}
 
 function AppContent() {
   const { state, setCurrentZone } = useApp();
@@ -68,7 +75,7 @@ function AppContent() {
     const history     = [density * 0.9, density * 0.95, density * 1.05, density];
     const waitHistory = [queueTime - 2, queueTime - 1, queueTime + 1, queueTime];
 
-    const trend: 'up' | 'down' | 'stable' = density > 0.75 ? 'up' : density < 0.25 ? 'down' : 'stable';
+    const trend = getDensityTrend(density);
 
     return {
       id: zoneId, label: meta.label, type: meta.type, location: meta.location,

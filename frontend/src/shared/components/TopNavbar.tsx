@@ -24,6 +24,140 @@ interface TopNavbarProps {
   onNavigate: (zoneId: string) => void;
 }
 
+interface StadiumSelectorProps {
+  showDropdown: boolean;
+  setShowDropdown: React.Dispatch<React.SetStateAction<boolean>>;
+  stadiumRef: React.RefObject<HTMLDivElement | null>;
+  currentStadiumName: string;
+  activeStadiumId: string;
+  onSelect: (id: string) => void;
+}
+
+function StadiumSelector({
+  showDropdown,
+  setShowDropdown,
+  stadiumRef,
+  currentStadiumName,
+  activeStadiumId,
+  onSelect,
+}: Readonly<StadiumSelectorProps>) {
+  return (
+    <div className="relative flex-shrink-0" ref={stadiumRef}>
+      <motion.button
+        onClick={() => setShowDropdown(p => !p)}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
+        style={{
+          background: 'var(--glass-bg)',
+          borderColor: 'var(--glass-border)',
+          color: 'hsl(var(--fg))'
+        }}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        aria-haspopup="listbox"
+        aria-expanded={showDropdown}
+      >
+        <span>🏟️ {currentStadiumName}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+      </motion.button>
+      <AnimatePresence>
+        {showDropdown && (
+          <motion.div
+            className="absolute left-0 mt-2 w-56 rounded-xl border shadow-lg z-50 p-1"
+            style={{
+              background: 'hsl(var(--elevated))',
+              borderColor: 'var(--glass-border)',
+            }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+          >
+            {Object.values(STADIUMS_CONFIG).map((stadium) => (
+              <button
+                key={stadium.id}
+                onClick={() => {
+                  onSelect(stadium.id);
+                  setShowDropdown(false);
+                }}
+                className="flex w-full items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-[hsl(var(--floating))] transition-colors"
+                style={{
+                  color: activeStadiumId === stadium.id ? 'hsl(var(--primary))' : 'hsl(var(--fg))',
+                  fontWeight: activeStadiumId === stadium.id ? 'bold' : 'normal',
+                }}
+              >
+                <div className="text-left">
+                  <div>{stadium.name}</div>
+                  <div className="text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>
+                    {stadium.city} • {stadium.capacity} seats
+                  </div>
+                </div>
+                {activeStadiumId === stadium.id && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+interface MatchPhasesProps {
+  simTime: number;
+  setMatchTime: (time: number) => void;
+}
+
+function MatchPhases({ simTime, setMatchTime }: Readonly<MatchPhasesProps>) {
+  const phases = [
+    { label: 'Pre-Match', Icon: Zap,   time: 15, active: simTime <= 30,           color: 'emerald' },
+    { label: 'Halftime',  Icon: Timer, time: 50, active: simTime > 30 && simTime <= 75, color: 'amber'   },
+    { label: 'Full-Time', Icon: Flag,  time: 95, active: simTime > 75,            color: 'emerald' },
+  ];
+
+  return (
+    <div className="hidden md:flex items-center gap-1.5">
+      {phases.map(({ label, Icon, time, active, color }) => {
+        const activePhaseClass = color === 'emerald'
+          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+          : 'bg-amber-500/10 border-amber-500/30 text-amber-400';
+        const inactiveClass = 'border-transparent text-[hsl(var(--muted))] hover:text-[hsl(var(--fg))] hover:bg-[hsl(var(--elevated))]';
+        const activeClass = active ? activePhaseClass : inactiveClass;
+
+        return (
+          <motion.button
+            key={label}
+            onClick={() => setMatchTime(time)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeClass}`}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            aria-pressed={active}
+          >
+            <Icon className="w-3 h-3" strokeWidth={2.5} />
+            {label}
+          </motion.button>
+        );
+      })}
+
+      {/* Live clock badge */}
+      <div
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border"
+        style={{
+          background: 'hsl(var(--elevated))',
+          borderColor: 'hsl(var(--border))',
+          color: '#06b6d4',
+        }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
+        {simTime}'
+      </div>
+    </div>
+  );
+}
+
+function getThemeIcon(resolvedTheme: string) {
+  if (resolvedTheme === 'dark') return Moon;
+  if (resolvedTheme === 'light') return Sun;
+  return Monitor;
+}
+
 export function TopNavbar({ showChat, onToggleChat, onNavigate }: Readonly<TopNavbarProps>) {
   const { state, setUser, toggleDevMode } = useApp();
   const { setMatchTime } = useSimulation();
@@ -95,19 +229,7 @@ export function TopNavbar({ showChat, onToggleChat, onNavigate }: Readonly<TopNa
     .slice(0, 9);
 
   const simTime = state.simulation_time;
-  const phases = [
-    { label: 'Pre-Match', Icon: Zap,   time: 15, active: simTime <= 30,           color: 'emerald' },
-    { label: 'Halftime',  Icon: Timer, time: 50, active: simTime > 30 && simTime <= 75, color: 'amber'   },
-    { label: 'Full-Time', Icon: Flag,  time: 95, active: simTime > 75,            color: 'emerald' },
-  ];
-
-  let ThemeIcon = Monitor;
-  if (resolvedTheme === 'dark') {
-    ThemeIcon = Moon;
-  } else if (resolvedTheme === 'light') {
-    ThemeIcon = Sun;
-  }
-
+  const ThemeIcon = getThemeIcon(resolvedTheme);
   const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
 
   return (
@@ -148,99 +270,17 @@ export function TopNavbar({ showChat, onToggleChat, onNavigate }: Readonly<TopNa
             </div>
 
             {/* Stadium Dropdown Selector */}
-            <div className="relative flex-shrink-0" ref={stadiumRef}>
-              <motion.button
-                onClick={() => setShowStadiumDropdown(p => !p)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
-                style={{
-                  background: 'var(--glass-bg)',
-                  borderColor: 'var(--glass-border)',
-                  color: 'hsl(var(--fg))'
-                }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                aria-haspopup="listbox"
-                aria-expanded={showStadiumDropdown}
-              >
-                <span>🏟️ {currentStadium.name}</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showStadiumDropdown ? 'rotate-180' : ''}`} />
-              </motion.button>
-              <AnimatePresence>
-                {showStadiumDropdown && (
-                  <motion.div
-                    className="absolute left-0 mt-2 w-56 rounded-xl border shadow-lg z-50 p-1"
-                    style={{
-                      background: 'hsl(var(--elevated))',
-                      borderColor: 'var(--glass-border)',
-                    }}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                  >
-                    {Object.values(STADIUMS_CONFIG).map((stadium) => (
-                      <button
-                        key={stadium.id}
-                        onClick={() => {
-                          setUser({ stadium_id: stadium.id as any });
-                          setShowStadiumDropdown(false);
-                        }}
-                        className="flex w-full items-center justify-between px-3 py-2 text-xs rounded-lg hover:bg-[hsl(var(--floating))] transition-colors"
-                        style={{
-                          color: activeStadium === stadium.id ? 'hsl(var(--primary))' : 'hsl(var(--fg))',
-                          fontWeight: activeStadium === stadium.id ? 'bold' : 'normal',
-                        }}
-                      >
-                        <div className="text-left">
-                          <div>{stadium.name}</div>
-                          <div className="text-[10px]" style={{ color: 'hsl(var(--muted-fg))' }}>
-                            {stadium.city} • {stadium.capacity} seats
-                          </div>
-                        </div>
-                        {activeStadium === stadium.id && <Check className="w-3.5 h-3.5 text-cyan-400" />}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <StadiumSelector
+              showDropdown={showStadiumDropdown}
+              setShowDropdown={setShowStadiumDropdown}
+              stadiumRef={stadiumRef}
+              currentStadiumName={currentStadium.name}
+              activeStadiumId={activeStadium}
+              onSelect={(id) => setUser({ stadium_id: id as any })}
+            />
 
             {/* ── Center: Match Phases ─────────────────────── */}
-            <div className="hidden md:flex items-center gap-1.5">
-              {phases.map(({ label, Icon, time, active, color }) => {
-                const activePhaseClass = color === 'emerald'
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400';
-                const inactiveClass = 'border-transparent text-[hsl(var(--muted))] hover:text-[hsl(var(--fg))] hover:bg-[hsl(var(--elevated))]';
-                const activeClass = active ? activePhaseClass : inactiveClass;
-
-                return (
-                  <motion.button
-                    key={label}
-                    onClick={() => setMatchTime(time)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${activeClass}`}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    aria-pressed={active}
-                  >
-                    <Icon className="w-3 h-3" strokeWidth={2.5} />
-                    {label}
-                  </motion.button>
-                );
-              })}
-
-              {/* Live clock badge */}
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono border"
-                style={{
-                  background: 'hsl(var(--elevated))',
-                  borderColor: 'hsl(var(--border))',
-                  color: '#06b6d4',
-                }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
-                {simTime}'
-              </div>
-            </div>
+            <MatchPhases simTime={simTime} setMatchTime={setMatchTime} />
 
             {/* ── Right: Controls ──────────────────────────── */}
             <div className="flex items-center gap-1.5 flex-shrink-0">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers, Map as MapIcon, Navigation as NavigationIcon } from 'lucide-react';
 import { ZoneStatus, CrowdZone, Route } from '../../shared/types';
@@ -132,6 +132,8 @@ export function StadiumMap({
   return (
     <div
       ref={containerRef}
+      role="region"
+      tabIndex={0}
       className="relative w-full h-full overflow-hidden flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none"
       style={{
         background: 'radial-gradient(circle at center, #0b1120 0%, #030712 100%)',
@@ -143,7 +145,6 @@ export function StadiumMap({
       onMouseUp={handleMouseUpOrLeave}
       onMouseLeave={handleMouseUpOrLeave}
       onKeyDown={e => { if (e.key === 'Escape') setIsDragging(false); }}
-      role="application"
       aria-label={`${stadiumConfig.name} Stadium Map`}
     >
       {/* View mode tabs */}

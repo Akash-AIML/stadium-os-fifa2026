@@ -60,7 +60,7 @@ const mockZones: CrowdZone[] = [
 describe('StadiumMap Component', () => {
   it('renders the stadium map application container', () => {
     render(<StadiumMap zones={mockZones} selectedZoneId={null} onZoneClick={vi.fn()} />);
-    expect(screen.getByRole('application')).toBeInTheDocument();
+    expect(screen.getByRole('region')).toBeInTheDocument();
   });
 
   it('renders Indoor View and Outdoor Transit toggle buttons', () => {

@@ -540,15 +540,16 @@ SonarQube's limit is **15** per function. Every function exceeding this was refa
 |:---|:---|:---:|:---:|:---|
 | `frontend/src/features/chat/ChatWindow.tsx` | `ChatInput` | 26 | ~8 | Extracted `getMicStyle()`, `getSubmitStyle()`, and `isSubmitDisabled` constant |
 | `frontend/src/features/navigation/StadiumMap.tsx` | `ZoneMarkerView` | 31 | ~10 | Extracted `computeZoneMarkerState()` pure helper; 4 `if/else` chains moved outside component |
-| `frontend/src/shared/components/TopNavbar.tsx` | `TopNavbar` | 16 | 14 | Replaced `let/if/else` pattern with single ternary; extracted `ThemeIcon` lookup |
+| `frontend/src/shared/components/TopNavbar.tsx` | `TopNavbar` | 16 | 7 | Extracted `StadiumSelector`, `MatchPhases` sub-components, and `getThemeIcon` helper |
 | `backend/app/routes/crowd.py` | `get_crowd_data` | 20 | 14 | Extracted `INVALID_STADIUM_ID` constant; eliminated duplicated string literals |
+| `frontend/src/features/navigation/components/ZoneMarkerView.tsx` | `ZoneMarkerView` | 22 | 8 | Extracted `renderZoneShape` helper function to handle complex gate vs. seat shape rendering |
 
 #### 🔁 Code Smells — Maintainability
 | Category | Files Fixed | Rule |
 |:---|:---|:---|
 | Duplicated string literals (4× same literal) | `crowd.py` | S1192 — extracted to `INVALID_STADIUM_ID` constant |
-| Nested ternary operations | `TopNavbar.tsx` L427 | S3358 — split into `activePhaseClass` + `inactiveClass` independent statements |
-| Unused imports | `useCrowd.ts`, `stadiums.ts`, `StadiumMap.tsx` | S1128 — removed `CrowdSnapshot`, `Maximize2`, stale type refs |
+| Nested ternary operations | `TopNavbar.tsx`, `App.tsx`, `ZoneMarkerView.tsx` | S3358 — split into `activePhaseClass` + `inactiveClass` statements; extracted `getDensityTrend` helper; resolved inline marker flags |
+| Unused imports | `useCrowd.ts`, `stadiums.ts`, `StadiumMap.tsx`, `MainWorkspace.tsx`, `App.tsx` | S1128 — removed `CrowdSnapshot`, `Maximize2`, `MessageSquare`, `ZoneStatus`, `TimelineSlider`, `memo` |
 | Unused local variables | `navigate.py`, `StadiumMap.tsx` | S1481 — removed dead variables |
 | Optional chain preferred | `AppContext.tsx`, `useNavigation.ts` | S6582 — `x && x.method()` → `x?.method()` |
 | Empty catch blocks | `AppContext.tsx` | S2486 — catch now logs at `console.debug` level in dev mode |
@@ -557,12 +558,12 @@ SonarQube's limit is **15** per function. Every function exceeding this was refa
 | File | Rule | Fix Applied |
 |:---|:---|:---|
 | `frontend/src/shared/components/input-group.tsx` | S6747 — non-interactive element with click handler | Added `role="button"`, `tabIndex={0}`, `onKeyDown` keyboard handler |
-| `frontend/src/features/navigation/StadiumMap.tsx` L489 | S6747 — drag-pan div without keyboard listener | Added `onKeyDown` (Escape key cancels drag), `role="application"`, `aria-label` |
+| `frontend/src/features/navigation/StadiumMap.tsx` | S6747 — drag-pan div without keyboard listener | Added `onKeyDown` (Escape key cancels drag), `role="region"`, `tabIndex={0}`, `aria-label` |
 
 #### 🏎️ Performance — Regex Backtracking S5852
 | File | Before | After |
 |:---|:---|:---|
-| `useTextToSpeech.ts` | `/\[([^\]]+)\]\([^)]+\)/g` | `/\[([^\]]*?)\]\([^)]*?\)/g` — lazy quantifiers prevent super-linear backtracking on malformed markdown |
+| `useTextToSpeech.ts` | `/\[([^\]]*?)\]\([^)]*?\)/g` | `/\[([^\]]+)\]\([^)]+\)/g` — greedy quantifiers with atomic sets (`[^\]]`, `[^)]`) prevent super-linear backtracking entirely |
 
 #### ⚙️ Build & Config
 | File | Rule | Fix |

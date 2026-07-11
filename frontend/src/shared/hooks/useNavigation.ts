@@ -36,7 +36,7 @@ export function useNavigation() {
   const calculateRoute = useCallback(async (fromZoneId: string, toZoneId: string) => {
     try {
       const routeData = await fetchRoute(fromZoneId, toZoneId);
-      if (routeData && routeData.path) {
+      if (routeData?.path) {
         const steps: RouteStep[] = routeData.path
           .map((zoneId: string, index: number) => {
             const meta = STADIUM_ZONES_METADATA[zoneId];

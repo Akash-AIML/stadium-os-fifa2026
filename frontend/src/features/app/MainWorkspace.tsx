@@ -1,11 +1,11 @@
-import { Map as MapIcon, MessageSquare, BarChart2, Zap, Cloud, Users, Clock, Shield } from 'lucide-react';
+import { Map as MapIcon, BarChart2, Zap, Cloud, Users, Clock, Shield } from 'lucide-react';
 import { FloatingWidget } from '../../shared/components/PremiumCards';
 import { StadiumMap } from '../navigation/StadiumMap';
 import { ChatWindow } from '../chat/ChatWindow';
 import { Dashboard } from '../crowd/Dashboard';
 import { RecommendationsList } from '../crowd/RecommendationCard';
 import { TimelineSlider } from '../../shared/components/TimelineSlider';
-import type { CrowdZone, Route, Alert, CrowdSnapshot, Recommendation, ZoneStatus } from '../../shared/types';
+import type { CrowdZone, Route, Alert, CrowdSnapshot, Recommendation } from '../../shared/types';
 
 type ActiveTab = 'map' | 'chat' | 'dashboard';
 type SelectedMetric = 'density' | 'queue' | 'flow';
