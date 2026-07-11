@@ -410,6 +410,24 @@ type ChatInputProps = Readonly<{
   inputRef: React.RefObject<HTMLInputElement | null>;
 }>;
 
+// ── ChatInput style helpers (extracted to reduce cognitive complexity) ─────────
+function getMicStyle(isListening: boolean) {
+  return {
+    background:   isListening ? 'rgba(239,68,68,0.1)' : 'hsl(var(--elevated))',
+    borderColor:  isListening ? 'rgba(239,68,68,0.3)' : 'hsl(var(--border))',
+    color:        isListening ? '#ef4444' : 'hsl(var(--muted))',
+  };
+}
+
+function getSubmitStyle(disabled: boolean) {
+  return {
+    background: disabled ? 'hsl(var(--elevated))' : 'hsl(var(--primary))',
+    color:      disabled ? 'hsl(var(--muted-fg))' : 'white',
+    border:     '1px solid transparent',
+    opacity:    disabled ? 0.5 : 1,
+  };
+}
+
 function ChatInput({
   input,
   setInput,
@@ -423,6 +441,10 @@ function ChatInput({
   handleSubmit,
   inputRef,
 }: ChatInputProps) {
+  const isSubmitDisabled = isProcessing || (!input.trim() && !transcript);
+  const handleMicClick   = isListening ? stopListening : () => startListening(language);
+  const placeholder      = isListening ? 'Listening…' : 'Ask about stadium, crowd, food, navigation...';
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -436,7 +458,7 @@ function ChatInput({
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder={isListening ? 'Listening…' : 'Ask about stadium, crowd, food, navigation...'}
+            placeholder={placeholder}
             className="input-field pr-3"
             aria-label="Chat message input"
             disabled={isProcessing}
@@ -447,13 +469,9 @@ function ChatInput({
         {isSupported && (
           <motion.button
             type="button"
-            onClick={isListening ? stopListening : () => startListening(language)}
+            onClick={handleMicClick}
             className="w-10 h-10 flex items-center justify-center rounded-xl border transition-all flex-shrink-0"
-            style={{
-              background: isListening ? 'rgba(239,68,68,0.1)' : 'hsl(var(--elevated))',
-              borderColor: isListening ? 'rgba(239,68,68,0.3)' : 'hsl(var(--border))',
-              color: isListening ? '#ef4444' : 'hsl(var(--muted))',
-            }}
+            style={getMicStyle(isListening)}
             whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.93 }}
             aria-label={isListening ? 'Stop listening' : 'Start voice input'}
           >
@@ -469,14 +487,9 @@ function ChatInput({
 
         <motion.button
           type="submit"
-          disabled={isProcessing || (!input.trim() && !transcript)}
+          disabled={isSubmitDisabled}
           className="w-10 h-10 flex items-center justify-center rounded-xl flex-shrink-0 transition-all"
-          style={{
-            background: isProcessing || (!input.trim() && !transcript) ? 'hsl(var(--elevated))' : 'hsl(var(--primary))',
-            color: isProcessing || (!input.trim() && !transcript) ? 'hsl(var(--muted-fg))' : 'white',
-            border: '1px solid transparent',
-            opacity: isProcessing || (!input.trim() && !transcript) ? 0.5 : 1,
-          }}
+          style={getSubmitStyle(isSubmitDisabled)}
           whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.93 }}
           aria-label="Send message"
         >

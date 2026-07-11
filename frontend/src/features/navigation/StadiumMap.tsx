@@ -179,6 +179,20 @@ const renderStadiumBackground = (stadiumId: string) => {
   );
 };
 
+// ── Pure helper: derive visual state values from zone interaction flags ────────
+function computeZoneMarkerState(isSelected: boolean, isHovered: boolean, isCritical: boolean, r: number) {
+  const scaleVal       = isSelected ? 1.2    : isHovered ? 1.12 : 1;
+  const circleRadius   = isSelected ? r + 2  : isHovered ? r + 1 : r;
+  const strokeWidthVal = isSelected ? 2.5    : isHovered ? 2 : 1.5;
+
+  let opacityVal = 0.06;
+  if (isSelected)     { opacityVal = 0.22; }
+  else if (isHovered) { opacityVal = 0.16; }
+  else if (isCritical){ opacityVal = 0.12; }
+
+  return { scaleVal, circleRadius, strokeWidthVal, opacityVal };
+}
+
 interface ZoneMarkerViewProps {
   zone: CrowdZone;
   index: number;
@@ -205,38 +219,10 @@ const ZoneMarkerView = memo(({
   const isGate     = zone.type === 'entrance' || zone.type === 'exit';
   const coords     = STADIUM_ZONES_METADATA[zone.id]?.location ?? [0, 0];
   const r          = isGate ? 18 : 15;
-
-  let scaleVal = 1;
-  if (isSelected) {
-    scaleVal = 1.2;
-  } else if (isHovered) {
-    scaleVal = 1.12;
-  }
-
-  let opacityVal = 0.06;
-  if (isSelected) {
-    opacityVal = 0.22;
-  } else if (isHovered) {
-    opacityVal = 0.16;
-  } else if (isCritical) {
-    opacityVal = 0.12;
-  }
-
-  let circleRadius = r;
-  if (isSelected) {
-    circleRadius = r + 2;
-  } else if (isHovered) {
-    circleRadius = r + 1;
-  }
-
-  let strokeWidthVal = 1.5;
-  if (isSelected) {
-    strokeWidthVal = 2.5;
-  } else if (isHovered) {
-    strokeWidthVal = 2;
-  }
-
   const IconComponent = getZoneIcon(zone.type);
+
+  const { scaleVal, circleRadius, strokeWidthVal, opacityVal } =
+    computeZoneMarkerState(isSelected, isHovered, isCritical, r);
 
   return (
     <motion.g
